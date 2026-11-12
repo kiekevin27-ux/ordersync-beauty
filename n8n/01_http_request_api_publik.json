@@ -1,0 +1,177 @@
+{
+  "name": "Glowra 01 - Ambil Data Produk dari API Publik",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 01 · Ambil data produk dari API publik\n\n**Alur:** Klik tombol → minta data ke API (GET) → pecah jadi 1 item per produk → ambil kolom yang penting saja.\n\n**API:** https://dummyjson.com/products/category/beauty (gratis, tanpa API key, data contoh).\n\n**Cara tes:** klik **Execute workflow** di bawah, lalu klik node terakhir untuk melihat hasilnya.\n\n**Kurs** USD→IDR di node *Ambil Kolom Penting* = **asumsi Rp16.000**, ubah sesuai kurs terbaru.",
+        "height": 300,
+        "width": 520,
+        "color": 7
+      },
+      "id": "a1f0c001-0000-4000-8000-000000000001",
+      "name": "Catatan Workflow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-60, -360]
+    },
+    {
+      "parameters": {},
+      "id": "a1f0c001-0000-4000-8000-000000000002",
+      "name": "Klik untuk Mulai",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "url": "https://dummyjson.com/products/category/beauty",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "a1f0c001-0000-4000-8000-000000000003",
+      "name": "GET Produk Beauty",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "products",
+        "options": {}
+      },
+      "id": "a1f0c001-0000-4000-8000-000000000004",
+      "name": "Pecah per Produk",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b1000001-0000-4000-8000-000000000001",
+              "name": "id_produk",
+              "value": "={{ $json.id }}",
+              "type": "number"
+            },
+            {
+              "id": "b1000001-0000-4000-8000-000000000002",
+              "name": "nama_produk",
+              "value": "={{ $json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "b1000001-0000-4000-8000-000000000003",
+              "name": "brand",
+              "value": "={{ $json.brand }}",
+              "type": "string"
+            },
+            {
+              "id": "b1000001-0000-4000-8000-000000000004",
+              "name": "harga_usd",
+              "value": "={{ $json.price }}",
+              "type": "number"
+            },
+            {
+              "id": "b1000001-0000-4000-8000-000000000005",
+              "name": "harga_idr_estimasi",
+              "value": "={{ Math.round($json.price * 16000) }}",
+              "type": "number"
+            },
+            {
+              "id": "b1000001-0000-4000-8000-000000000006",
+              "name": "stok",
+              "value": "={{ $json.stock }}",
+              "type": "number"
+            },
+            {
+              "id": "b1000001-0000-4000-8000-000000000007",
+              "name": "status_stok",
+              "value": "={{ $json.stock < 40 ? 'RESTOCK' : 'AMAN' }}",
+              "type": "string"
+            },
+            {
+              "id": "b1000001-0000-4000-8000-000000000008",
+              "name": "diambil_pada",
+              "value": "={{ $now.toFormat('yyyy-MM-dd HH:mm') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1f0c001-0000-4000-8000-000000000005",
+      "name": "Ambil Kolom Penting",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [720, 0]
+    },
+    {
+      "parameters": {
+        "content": "### (Opsional) Tulis ke Google Sheets\nNode di bawah **dinonaktifkan**. Untuk memakainya:\n1. Klik 2x node → buat **Credential** Google Sheets (login Google).\n2. Isi **Document** = URL spreadsheet kamu, **Sheet** = `Produk_API` (buat dulu tab ini, baris 1 berisi judul kolom: id_produk, nama_produk, brand, harga_usd, harga_idr_estimasi, stok, status_stok, diambil_pada).\n3. Klik kanan node → **Activate**.",
+        "height": 260,
+        "width": 420,
+        "color": 5
+      },
+      "id": "a1f0c001-0000-4000-8000-000000000006",
+      "name": "Catatan Google Sheets",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [900, -320]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Produk_API",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "a1f0c001-0000-4000-8000-000000000007",
+      "name": "Tulis ke Google Sheets (opsional)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [960, 0],
+      "disabled": true
+    }
+  ],
+  "connections": {
+    "Klik untuk Mulai": {
+      "main": [[{ "node": "GET Produk Beauty", "type": "main", "index": 0 }]]
+    },
+    "GET Produk Beauty": {
+      "main": [[{ "node": "Pecah per Produk", "type": "main", "index": 0 }]]
+    },
+    "Pecah per Produk": {
+      "main": [[{ "node": "Ambil Kolom Penting", "type": "main", "index": 0 }]]
+    },
+    "Ambil Kolom Penting": {
+      "main": [[{ "node": "Tulis ke Google Sheets (opsional)", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Jakarta"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

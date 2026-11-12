@@ -1,0 +1,22 @@
+{
+  "_catatan": "SEMUA ANGKA DI FILE INI ADALAH ASUMSI untuk studi kasus fiktif Glowra Beauty. Fee marketplace sering berubah dan berbeda per jenis toko, kategori produk, dan program yang diikuti (gratis ongkir, cashback, dll). Sebelum dipakai untuk toko asli, cek ke Seller Center / pusat edukasi penjual masing-masing marketplace.",
+  "terakhir_ditinjau": "2026-11-12",
+  "biaya_packing_per_order": 3000,
+  "channel": {
+    "shopee": {
+      "fee_persen": 0.10,
+      "biaya_tetap_per_order": 1250,
+      "keterangan": "Asumsi gabungan biaya admin + biaya layanan program, toko non-Mall"
+    },
+    "tiktok": {
+      "fee_persen": 0.08,
+      "biaya_tetap_per_order": 0,
+      "keterangan": "Asumsi gabungan komisi platform + biaya layanan"
+    },
+    "whatsapp": {
+      "fee_persen": 0,
+      "biaya_tetap_per_order": 0,
+      "keterangan": "Jualan langsung, tanpa potongan platform"
+    }
+  }
+}

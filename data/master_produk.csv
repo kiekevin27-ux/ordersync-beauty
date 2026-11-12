@@ -1,0 +1,16 @@
+﻿sku,nama_produk,kategori,hpp,harga_jual,stok_awal,stok_minimum
+GLW-SRM-001,Glowra Niacinamide 10% Brightening Serum 20ml,Serum,42000,119000,60,25
+GLW-SRM-002,Glowra Vitamin C Glow Serum 20ml,Serum,48000,135000,70,20
+GLW-SRM-003,Glowra Retinol 0.3% Night Serum 20ml,Serum,55000,149000,35,15
+GLW-TNR-001,Glowra Centella Calming Toner 150ml,Toner,30000,89000,50,20
+GLW-TNR-002,Glowra AHA BHA Exfoliating Toner 100ml,Toner,33000,95000,40,15
+GLW-SNS-001,Glowra UV Shield Sunscreen SPF50 PA++++ 50ml,Sunscreen,35000,99000,65,30
+GLW-SNS-002,Glowra Tone Up Sunscreen SPF35 40ml,Sunscreen,32000,89000,50,20
+GLW-MST-001,Glowra Ceramide Barrier Moisturizer 50g,Moisturizer,38000,109000,60,20
+GLW-MST-002,Glowra Oil Control Gel Moisturizer 50g,Moisturizer,30000,85000,40,20
+GLW-FWS-001,Glowra Gentle Low pH Facial Wash 100ml,Facial Wash,15000,49000,85,30
+GLW-FWS-002,Glowra Acne Clear Facial Wash 100ml,Facial Wash,16000,52000,50,25
+GLW-LTN-001,Glowra Velvet Lip Tint - Rosy,Lip Tint,12000,45000,50,25
+GLW-LTN-002,Glowra Velvet Lip Tint - Coral,Lip Tint,12000,45000,50,25
+GLW-MSK-001,Glowra Hydrating Sheet Mask isi 5,Masker,20000,59000,70,30
+GLW-SET-001,Glowra Bright Skin Starter Kit,Paket,95000,249000,15,8

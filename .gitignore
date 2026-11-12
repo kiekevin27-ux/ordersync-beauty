@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# File kunci sementara Excel / LibreOffice (muncul saat file .xlsx sedang dibuka)
+~$*
+.~lock.*
+
+# n8n lokal & rahasia
+.n8n/
+.env
+*.env
+
+# Sistem operasi & editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
