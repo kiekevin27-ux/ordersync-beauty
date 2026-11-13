@@ -12,6 +12,7 @@ venv/
 kredensial/
 *service-account*.json
 .n8n/
+.cache/
 .env
 *.env
 
