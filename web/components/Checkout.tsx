@@ -6,6 +6,7 @@ import { useKeranjang } from "./KeranjangProvider";
 import PengaturQty from "./PengaturQty";
 import VisualProduk from "./VisualProduk";
 import BalikLayar, { langkahCheckout } from "./BalikLayar";
+import InfoModeOnline from "./InfoModeOnline";
 import { namaPendek, rupiah } from "@/lib/format";
 import type { HasilCheckout, PermintaanCheckout } from "@/lib/tipe";
 
@@ -87,6 +88,7 @@ export default function Checkout() {
     <div className="mx-auto max-w-6xl px-4 py-10">
       <Link href="/" className="text-sm text-tinta-lembut hover:text-anggur">← Kembali belanja</Link>
       <h1 className="mt-3 font-judul text-4xl font-semibold text-anggur">Checkout</h1>
+      <div className="mt-6"><InfoModeOnline apa="checkout" /></div>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_380px]">
         <form onSubmit={submit} className="rounded-3xl bg-white p-6 shadow-kartu sm:p-8">

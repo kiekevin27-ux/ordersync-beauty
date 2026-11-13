@@ -4,6 +4,25 @@
 
 > ⚠️ **Glowra Beauty adalah toko fiktif.** Semua nama, nomor HP, nomor pesanan, dan angka di repo ini adalah **data dummy** yang dibuat untuk portofolio. Nomor HP memakai pola `08xx-555-xxxx` sebagai penanda fiktif.
 
+## Sekilas
+
+**Order dari mana pun → diperiksa & dirapikan otomatis → tercatat di Google Sheets → stok berkurang sendiri → pemilik dapat notifikasi & dashboard.**
+
+| Toko demo | Hasil checkout: tercatat + jejak tiap langkah |
+|---|---|
+| ![Toko demo Glowra](docs/img/01-toko.jpg) | ![Hasil checkout](docs/img/02-checkout-hasil.jpg) |
+| **Simulator notifikasi Shopee / TikTok** | **Dashboard pemilik toko** |
+| ![Simulator marketplace](docs/img/03-simulator-hasil.jpg) | ![Dashboard](docs/img/04-dashboard.jpg) |
+
+**4 pintu masuk order, 1 gerbang, 1 buku besar:**
+
+| Pintu masuk | Cocok untuk | Status |
+|---|---|---|
+| 🛍 Website / form / chatbot WA → webhook | Toko dengan website atau admin WA | ✅ Jalan |
+| 🔔 Notifikasi API Shopee & TikTok | Toko besar, real-time | ✅ Jalan dengan simulator, siap API asli |
+| 📁 File export di Google Drive | **UMKM, tanpa izin API** | ✅ Jalan, diuji dengan 300 order |
+| 🐍 Script Python (sekali jalan) | Membereskan data lama | ✅ Jalan |
+
 ---
 
 ## 1. Masalah seller
@@ -20,7 +39,7 @@ Glowra Beauty jualan di **3 tempat sekaligus**: Shopee, TikTok Shop, dan WhatsAp
 
 ## 2. Solusi
 
-Fondasi data & otomasi dalam 8 lapis:
+Fondasi data & otomasi dalam 10 lapis:
 
 | Lapis | Yang dilakukan | File |
 |---|---|---|
@@ -32,6 +51,8 @@ Fondasi data & otomasi dalam 8 lapis:
 | **6. Toko demo** | Website toko Glowra (Next.js): katalog → keranjang → checkout → n8n → Google Sheets, dengan panel **"Di balik layar"** yang menunjukkan setiap langkah & JSON-nya. Untuk demo langsung ke calon klien | [`web/`](web/) · [`docs/06`](docs/06-toko-demo-website.md) |
 | **7. Notifikasi marketplace** | Pola API resmi Shopee & TikTok: notifikasi → **ambil detail order** → terjemahkan → gerbang. Status pesanan (diproses → dikirim → selesai/batal) ikut diperbarui di sheet. Dicoba lewat halaman **Simulator** tanpa akun developer | [`n8n/04_…`](n8n/04_webhook_marketplace.json) · [`docs/07`](docs/07-simulator-marketplace.md) |
 | **8. Import file export** | Seller taruh file export Shopee/TikTok di folder **Google Drive** → n8n membersihkan (dobel, SKU typo, status, tanggal) → ratusan order tercatat dalam 1 kali tulis + ringkasan di tab `Log_Import`. **Tanpa izin API** | [`n8n/05_…`](n8n/05_import_export_drive.json) · [`docs/08`](docs/08-import-export-drive.md) |
+| **9. Stok otomatis + notifikasi** | Tab `Stok_Live` menghitung stok dari semua order (order baru sudah **memesan** stok supaya tidak oversell). Begitu produk menyentuh batas minimum, pemilik dapat **pesan Telegram**, tanpa spam (hanya saat status berubah) | [`n8n/06_…`](n8n/06_notifikasi_stok_telegram.json) · [`docs/09`](docs/09-stok-dan-notifikasi.md) |
+| **10. Dashboard pemilik** | Halaman `/dashboard`: omzet, order, channel, status, produk terlaris, stok, order terbaru, langsung dari Google Sheet. Bisa dibuka dari HP, siap online di Vercel | [`web/app/dashboard`](web/app/dashboard/page.tsx) · [`docs/10`](docs/10-dashboard.md) · [`docs/11`](docs/11-deploy-vercel.md) |
 
 ## 3. Arsitektur
 
@@ -73,6 +94,8 @@ flowchart LR
     WEB["🛍️ Toko demo<br/>web/ (Next.js)"] -->|"checkout JSON<br/>workflow 03"| WH
     MP["🔔 Notifikasi Shopee/TikTok<br/>(simulator)"] -->|"04: ambil detail<br/>+ terjemahkan"| WH
     DRV[("📁 Folder Drive<br/>file export")] -->|"05: bersihkan<br/>banyak order"| WH
+    OM -->|"rumus"| STK[("Stok_Live")] -->|"06: tiap 5 menit<br/>/ setelah order"| TG["📱 Telegram<br/>pemilik"]
+    OM & STK --> DSB["📊 /dashboard"]
     VAL -- lengkap --> NORM --> R200
     VAL -- tidak --> R400
     NORM -->|workflow 03| GS -->|RAW| OM
@@ -83,7 +106,7 @@ flowchart LR
     classDef ok fill:#d8f3dc,stroke:#2d6a4f,color:#111;
     classDef bad fill:#fff3b0,stroke:#e09f3e,color:#111;
     class SP,TT,WA,WEB,MP,DRV src;
-    class R200,XL,OM,GS ok;
+    class R200,XL,OM,GS,STK,TG,DSB ok;
     class R400,R500 bad;
 ```
 
@@ -131,7 +154,9 @@ Keputusan teknologi dan alasannya dicatat di [`ADR-001`](docs/adr/ADR-001-stack-
 - Toko demo diuji end-to-end di browser (Edge): keranjang 3 produk → 200, total Rp414.000 cocok; kirim ulang → baris tidak bertambah; order rusak → 400; harga palsu dari browser diabaikan.
 - **Tersambung ke Google Sheets asli** (service account): penulisan, upsert, dan kiriman banyak order sekaligus terverifikasi.
 - Workflow 04 diuji dengan 6 skenario (Shopee HP disamarkan, TikTok qty 3 digabung, status → selesai memperbarui baris, belum bayar diabaikan, notifikasi asing → 400, order tidak ada → 500).
-- Pembersih workflow 05 menghasilkan angka **sama persis** dengan `clean_merge.py` (Shopee 200 order, TikTok 100 order).
+- Pembersih workflow 05 menghasilkan angka **sama persis** dengan `clean_merge.py` (Shopee 200 order, TikTok 100 order), diuji juga dengan upload file sungguhan ke Google Drive.
+- Workflow 06 diuji: produk turun di bawah minimum → peringatan, order dibatalkan → "sudah aman lagi", pengecekan berulang tanpa perubahan → diam (anti spam).
+- Workbook dengan tab `Stok_Live`: **2.269 rumus, 0 error** di Excel. Dashboard & semua halaman dicek di lebar HP (390px) tanpa meluber.
 
 ## 5. Tech stack
 
@@ -139,8 +164,8 @@ Keputusan teknologi dan alasannya dicatat di [`ADR-001`](docs/adr/ADR-001-stack-
 |---|---|
 | Generator & cleaning data | Python 3.12 (`csv`, `random`, `re`, tanpa library tambahan) |
 | Spreadsheet | `openpyxl` → `.xlsx` → Google Sheets (SUMIFS, COUNTIFS, XLOOKUP, IF) |
-| Otomasi | n8n: Manual Trigger, HTTP Request, Split Out, Edit Fields, Webhook, Code, IF, Respond to Webhook, Google Sheets & Google Drive Trigger (Service Account), Extract From File |
-| Toko demo | Next.js 14 (App Router) + TypeScript + Tailwind CSS |
+| Otomasi | n8n: Webhook, Schedule Trigger, Google Drive Trigger, Code, IF, Loop Over Items, HTTP Request, Extract From File, Google Sheets (Service Account), Telegram, Respond to Webhook |
+| Toko demo & dashboard | Next.js 14 (App Router) + TypeScript + Tailwind CSS; grafik SVG buatan sendiri; Google Sheets API via JWT tanpa library |
 | Diagram | Mermaid (ter-render langsung di GitHub) |
 | Format data | CSV UTF-8 with BOM, JSON |
 
@@ -152,11 +177,13 @@ Keputusan teknologi dan alasannya dicatat di [`ADR-001`](docs/adr/ADR-001-stack-
 | ✅ **Selesai** | **Toko demo** yang tersambung ke workflow | Calon klien bisa mencoba alurnya sendiri |
 | ✅ **Selesai** | **Simulator notifikasi marketplace** (pola API Shopee/TikTok) + status pesanan ikut diperbarui | Siap dipindah ke API asli begitu ada izin partner |
 | ✅ **Selesai** | **Import file export via Google Drive** | Bisa langsung dipakai seller tanpa izin API |
+| ✅ **Selesai** | **Stok otomatis + notifikasi RESTOCK ke Telegram** | Tidak kehabisan produk andalan |
+| ✅ **Selesai** | **Dashboard** omzet, channel, status, produk terlaris & stok (web, bisa dibuka dari HP) | Owner pantau bisnis tanpa membuka sheet |
 | **Berikutnya** | **Follow-up WA otomatis**: pengingat H+25 setelah pembelian (skincare habis ±1 bulan), ucapan terima kasih, minta review. Lewat WhatsApp Business Platform resmi | Repeat order naik tanpa admin harus ingat |
-| | Notifikasi ke owner saat produk masuk status RESTOCK | Tidak kehabisan produk andalan |
 | **Menengah** | **Sinkron stok real-time** antar channel via API resmi Shopee & TikTok (butuh otorisasi toko & persetujuan app partner) | Overselling hilang |
 | | Rekonsiliasi dana cair vs pesanan selesai | Dana yang "nyangkut" ketahuan |
-| **Lanjutan** | **Dashboard** omzet, laba, stok & pelanggan (Looker Studio / web) | Owner pantau bisnis dari HP |
+| **Menengah** | **n8n online** (n8n Cloud / server) + login untuk dashboard | Sistem jalan 24 jam, siap dipakai klien |
+| **Lanjutan** | Laba bersih per order di dashboard (HPP + fee marketplace) | Tahu produk mana yang benar-benar untung |
 | | Segmentasi pelanggan (baru, repeat, tidur) untuk promo yang tepat sasaran | Biaya promo lebih efisien |
 
 ## 7. Cara menjalankan
@@ -170,6 +197,7 @@ python scripts/build_workbook.py   # 3. buat sheets/glowra_fondasi.xlsx
 python scripts/build_workflow_03.py # 4. buat workflow n8n 03 (gerbang order)
 python scripts/build_workflow_04.py #    workflow 04 (notifikasi marketplace)
 python scripts/build_workflow_05.py #    workflow 05 (import export Drive)
+python scripts/build_workflow_06.py #    workflow 06 (pemantau stok + Telegram)
 ```
 
 Lalu:
@@ -179,6 +207,9 @@ Lalu:
 - Coba alurnya dari sisi pembeli lewat toko demo, ikuti [`docs/06-toko-demo-website.md`](docs/06-toko-demo-website.md).
 - Coba notifikasi marketplace di `/simulator`, ikuti [`docs/07-simulator-marketplace.md`](docs/07-simulator-marketplace.md).
 - Coba import file export lewat Google Drive, ikuti [`docs/08-import-export-drive.md`](docs/08-import-export-drive.md).
+- Sambungkan notifikasi stok ke Telegram, ikuti [`docs/09-stok-dan-notifikasi.md`](docs/09-stok-dan-notifikasi.md).
+- Buka dashboard & online-kan di Vercel, ikuti [`docs/10-dashboard.md`](docs/10-dashboard.md) dan [`docs/11-deploy-vercel.md`](docs/11-deploy-vercel.md).
+- **Jalan pintas di laptop:** klik kanan `jalankan-demo.ps1` → *Run with PowerShell* (n8n + toko sekaligus).
 
 ## 8. Struktur repo
 
@@ -191,10 +222,11 @@ ordersync-beauty/
 │   ├── master_produk.csv           ← 15 produk
 │   ├── raw/                        ← export mentah Shopee, TikTok, WA
 │   └── clean/orders_gabungan.csv   ← hasil gabungan bersih
-├── scripts/                        ← generate_dummy · clean_merge · build_workbook · build_workflow_03/04/05
+├── scripts/                        ← generate_dummy · clean_merge · build_workbook · build_workflow_03…06
 ├── sheets/glowra_fondasi.xlsx      ← workbook berisi rumus
-├── n8n/                            ← 5 workflow + contoh payload tes
-├── web/                            ← toko demo Glowra (Next.js)
+├── n8n/                            ← 6 workflow + contoh payload tes
+├── web/                            ← toko demo, simulator & dashboard (Next.js)
+├── jalankan-demo.ps1               ← nyalakan n8n + toko sekaligus
 └── docs/
     ├── adr/ADR-001-stack-fondasi.md
     ├── adr/ADR-002-google-sheets-service-account.md
@@ -205,7 +237,12 @@ ordersync-beauty/
     ├── 05-webhook-ke-google-sheets.md
     ├── 06-toko-demo-website.md
     ├── 07-simulator-marketplace.md
-    └── 08-import-export-drive.md
+    ├── 08-import-export-drive.md
+    ├── 09-stok-dan-notifikasi.md
+    ├── 10-dashboard.md
+    ├── 11-deploy-vercel.md
+    ├── 12-paket-jasa.md
+    └── img/                        ← screenshot
 ```
 
 ---

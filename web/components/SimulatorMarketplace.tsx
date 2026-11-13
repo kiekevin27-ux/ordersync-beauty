@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useKeranjang } from "./KeranjangProvider";
 import BalikLayar, { type Langkah, type StatusLangkah } from "./BalikLayar";
 import { namaPendek, rupiah } from "@/lib/format";
+import InfoModeOnline from "./InfoModeOnline";
 
 type Platform = "shopee" | "tiktok";
 
@@ -162,7 +163,9 @@ export default function SimulatorMarketplace() {
         dan mencatatnya ke Google Sheets lewat gerbang yang sama dengan toko.
       </p>
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_420px]">
+      <div className="mt-6"><InfoModeOnline apa="simulator" /></div>
+
+      <div className="mt-2 grid gap-8 lg:grid-cols-[1fr_420px]">
         {/* ---------- Buat order ---------- */}
         <section className="min-w-0 rounded-3xl bg-white p-6 shadow-kartu sm:p-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
