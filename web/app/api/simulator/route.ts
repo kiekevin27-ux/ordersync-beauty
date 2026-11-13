@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buatOrder, daftarOrder, payloadNotifikasi, ubahStatus, type Platform } from "@/lib/simulator";
+import { pingCekStok } from "@/lib/cekStok";
 
 /**
  * GET  /api/simulator  → daftar order simulasi
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
   if (!url) {
     return NextResponse.json({
       ...dasar, hasil: "tidak_terhubung", http_status: null, diterima: null, durasi_ms: null,
-      pesan: "N8N_MARKETPLACE_WEBHOOK_URL belum diisi di web/.env.local",
+      pesan: "Versi online ini belum tersambung ke n8n (n8n masih berjalan di laptop pemilik demo). Jalankan secara lokal untuk mencoba simulator.",
     }, { status: 503 });
   }
 
@@ -65,6 +66,7 @@ export async function POST(req: Request) {
     } catch {
       diterima = { teks_mentah: teks.slice(0, 500) };
     }
+    if (res.status === 200) pingCekStok();
     const hasil =
       res.status === 404 ? "tidak_terhubung" : res.status === 200 ? String(diterima?.status ?? "tercatat") : String(diterima?.status ?? "gagal");
     return NextResponse.json({

@@ -1,7 +1,6 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
+import data from "./produk.generated.json";
 
-/** Data produk yang boleh dilihat pembeli (HPP sengaja TIDAK ikut dikirim ke browser). */
+/** Data produk yang boleh dilihat pembeli (HPP sengaja TIDAK ikut). */
 export type Produk = {
   sku: string;
   nama: string;
@@ -9,30 +8,14 @@ export type Produk = {
   harga: number;
 };
 
-// Sumber kebenaran tetap satu: data/master_produk.csv di root repo, sama dengan yang dipakai
-// script Python & workbook. Website tidak punya salinan daftar produk sendiri.
-const CSV_PATH = path.join(process.cwd(), "..", "data", "master_produk.csv");
-
-let cache: Produk[] | null = null;
+// Sumber kebenaran tetap data/master_produk.csv di root repo (dipakai juga script Python & workbook).
+// File JSON ini dibuat otomatis oleh web/scripts/salin-produk.mjs sebelum dev/build.
+const produk: Produk[] = data;
 
 export function semuaProduk(): Produk[] {
-  if (cache) return cache;
-  const teks = readFileSync(CSV_PATH, "utf-8").replace(/^﻿/, ""); // buang BOM
-  const [header, ...baris] = teks.trim().split(/\r?\n/);
-  const kolom = header.split(",");
-  const idx = (k: string) => kolom.indexOf(k);
-  cache = baris.map((b) => {
-    const f = b.split(","); // CSV ini tidak memakai tanda kutip/koma di dalam nilai
-    return {
-      sku: f[idx("sku")],
-      nama: f[idx("nama_produk")],
-      kategori: f[idx("kategori")],
-      harga: Number(f[idx("harga_jual")]),
-    };
-  });
-  return cache;
+  return produk;
 }
 
 export function cariProduk(sku: string): Produk | undefined {
-  return semuaProduk().find((p) => p.sku === sku);
+  return produk.find((p) => p.sku === sku);
 }

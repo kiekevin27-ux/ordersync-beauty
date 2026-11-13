@@ -9,6 +9,7 @@ Tab:
   Stok              stok awal, terjual, retur, stok akhir, status AMAN/RESTOCK
   Laba_per_Channel  ringkasan per channel + cek kecocokan omzet
   Order_Masuk       tab kosong (header saja) tujuan tulis workflow n8n 03 (webhook -> Google Sheets)
+  Stok_Live         stok otomatis dari Order_Masuk + status AMAN/RESTOCK/HABIS (dipantau workflow 06)
   Log_Import        tab kosong, diisi ringkasan tiap import file export (workflow 05)
 
 Di akhir, script menghitung ulang semua angka dengan Python biasa (tanpa rumus) supaya hasil
@@ -278,6 +279,43 @@ def tab_order_masuk(wb):
     atur_lebar(ws, [19, 34, 9, 21, 13, 6, 12, 12, 20, 15, 18, 11, 48, 14, 17])
 
 
+
+def tab_stok_live(wb, n_produk):
+    """Stok yang ikut berubah otomatis dari tab Order_Masuk (diisi n8n). Dipantau workflow 06.
+
+    Huruf kolom Order_Masuk: E = sku, F = qty, N = status_pesanan (lihat KOLOM_ORDER_MASUK).
+    Order baru & diproses sudah MEMESAN stok (supaya tidak oversell); batal & retur tidak mengurangi.
+    Catatan: di Google Sheets berbahasa Indonesia pemisah rumus = titik koma (;). File .xlsx selalu
+    menyimpan koma, Google Sheets menerjemahkannya otomatis saat file di-upload.
+    """
+    for nama, huruf in (("sku", "E"), ("qty", "F"), ("status_pesanan", "N")):
+        assert get_column_letter(KOLOM_ORDER_MASUK.index(nama) + 1) == huruf, f"kolom {nama} bergeser"
+    ws = wb.create_sheet("Stok_Live")
+    tulis_header(ws, 1, ["SKU", "Nama Produk", "Stok Awal", "Dipesan (baru+diproses)", "Terjual (dikirim+selesai)",
+                         "Stok Tersedia", "Stok Minimum", "Status"])
+    jumlah = lambda r, st: f'SUMIFS(Order_Masuk!$F:$F,Order_Masuk!$E:$E,$A{r},Order_Masuk!$N:$N,"{st}")'
+    for i in range(n_produk):
+        r = i + 2
+        ws.cell(r, 1, f"=Master_Produk!A{r}")
+        ws.cell(r, 2, f"=Master_Produk!B{r}")
+        ws.cell(r, 3, f"=VLOOKUP($A{r},Master_Produk!$A:$G,6,FALSE)")
+        ws.cell(r, 4, f"={jumlah(r, 'baru')}+{jumlah(r, 'diproses')}")
+        ws.cell(r, 5, f"={jumlah(r, 'dikirim')}+{jumlah(r, 'selesai')}")
+        ws.cell(r, 6, f"=C{r}-D{r}-E{r}")
+        ws.cell(r, 7, f"=VLOOKUP($A{r},Master_Produk!$A:$G,7,FALSE)")
+        ws.cell(r, 8, f'=IF(F{r}<=0,"HABIS",IF(F{r}<G{r},"RESTOCK","AMAN"))')
+        ws.cell(r, 8).alignment = Alignment(horizontal="center")
+        ws.cell(r, 8).font = TOTAL_FONT
+    akhir = n_produk + 1
+    for teks, bg, fg in (("HABIS", "991C1C", "FFFFFF"), ("RESTOCK", "F8D7DA", "9B1C1C"), ("AMAN", "D8F3DC", "2D6A4F")):
+        ws.conditional_formatting.add(f"H2:H{akhir}", FormulaRule(formula=[f'$H2="{teks}"'],
+                                      fill=PatternFill("solid", fgColor=bg), font=Font(bold=True, color=fg)))
+    ws.cell(akhir + 2, 1, "Catatan: stok dihitung otomatis dari tab Order_Masuk. Order baru & diproses sudah "
+                          "MEMESAN stok (supaya tidak oversell). Order batal & retur tidak mengurangi stok.").font = CATATAN_FONT
+    ws.freeze_panes = "C2"
+    atur_lebar(ws, [14, 46, 10, 14, 14, 12, 13, 12])
+
+
 # ---------------------------------------------------------------------------
 def hitung_ulang_python(orders, produk, cfg):
     """Hitung angka yang SEHARUSNYA muncul di spreadsheet, tanpa rumus."""
@@ -313,6 +351,7 @@ def main():
     tab_stok(wb, len(produk))
     tab_laba(wb)
     tab_order_masuk(wb)
+    tab_stok_live(wb, len(produk))
     wb.create_sheet("Log_Import")  # kosong: header dibuat otomatis oleh workflow 05 saat import pertama
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     wb.save(OUT_PATH)

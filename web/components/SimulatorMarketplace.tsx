@@ -164,7 +164,7 @@ export default function SimulatorMarketplace() {
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_420px]">
         {/* ---------- Buat order ---------- */}
-        <section className="rounded-3xl bg-white p-6 shadow-kartu sm:p-8">
+        <section className="min-w-0 rounded-3xl bg-white p-6 shadow-kartu sm:p-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="font-judul text-xl font-semibold">1. Buat order baru</h2>
             <div className="flex gap-1 rounded-full bg-blush-muda p-1">
@@ -236,7 +236,7 @@ export default function SimulatorMarketplace() {
         </section>
 
         {/* ---------- Daftar order simulasi ---------- */}
-        <section className="h-fit rounded-3xl bg-blush-muda p-6 ring-1 ring-blush-tua/60">
+        <section className="h-fit min-w-0 rounded-3xl bg-blush-muda p-6 ring-1 ring-blush-tua/60">
           <div className="flex items-center justify-between">
             <h2 className="font-judul text-xl font-semibold">2. Ubah status order</h2>
             <button onClick={muatOrder} className="text-xs text-tinta-lembut hover:text-anggur">↻ Muat ulang</button>
@@ -266,7 +266,7 @@ export default function SimulatorMarketplace() {
                       <select
                         value={pilihan}
                         onChange={(e) => setPilihStatus({ ...pilihStatus, [k]: e.target.value })}
-                        className="input !rounded-full !py-1.5 !text-xs"
+                        className="input min-w-0 !rounded-full !py-1.5 !text-xs"
                         aria-label={`Status baru untuk ${o.id}`}
                       >
                         {STATUS[o.platform].map((s) => (

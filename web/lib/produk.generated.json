@@ -1,0 +1,92 @@
+[
+  {
+    "sku": "GLW-SRM-001",
+    "nama": "Glowra Niacinamide 10% Brightening Serum 20ml",
+    "kategori": "Serum",
+    "harga": 119000
+  },
+  {
+    "sku": "GLW-SRM-002",
+    "nama": "Glowra Vitamin C Glow Serum 20ml",
+    "kategori": "Serum",
+    "harga": 135000
+  },
+  {
+    "sku": "GLW-SRM-003",
+    "nama": "Glowra Retinol 0.3% Night Serum 20ml",
+    "kategori": "Serum",
+    "harga": 149000
+  },
+  {
+    "sku": "GLW-TNR-001",
+    "nama": "Glowra Centella Calming Toner 150ml",
+    "kategori": "Toner",
+    "harga": 89000
+  },
+  {
+    "sku": "GLW-TNR-002",
+    "nama": "Glowra AHA BHA Exfoliating Toner 100ml",
+    "kategori": "Toner",
+    "harga": 95000
+  },
+  {
+    "sku": "GLW-SNS-001",
+    "nama": "Glowra UV Shield Sunscreen SPF50 PA++++ 50ml",
+    "kategori": "Sunscreen",
+    "harga": 99000
+  },
+  {
+    "sku": "GLW-SNS-002",
+    "nama": "Glowra Tone Up Sunscreen SPF35 40ml",
+    "kategori": "Sunscreen",
+    "harga": 89000
+  },
+  {
+    "sku": "GLW-MST-001",
+    "nama": "Glowra Ceramide Barrier Moisturizer 50g",
+    "kategori": "Moisturizer",
+    "harga": 109000
+  },
+  {
+    "sku": "GLW-MST-002",
+    "nama": "Glowra Oil Control Gel Moisturizer 50g",
+    "kategori": "Moisturizer",
+    "harga": 85000
+  },
+  {
+    "sku": "GLW-FWS-001",
+    "nama": "Glowra Gentle Low pH Facial Wash 100ml",
+    "kategori": "Facial Wash",
+    "harga": 49000
+  },
+  {
+    "sku": "GLW-FWS-002",
+    "nama": "Glowra Acne Clear Facial Wash 100ml",
+    "kategori": "Facial Wash",
+    "harga": 52000
+  },
+  {
+    "sku": "GLW-LTN-001",
+    "nama": "Glowra Velvet Lip Tint - Rosy",
+    "kategori": "Lip Tint",
+    "harga": 45000
+  },
+  {
+    "sku": "GLW-LTN-002",
+    "nama": "Glowra Velvet Lip Tint - Coral",
+    "kategori": "Lip Tint",
+    "harga": 45000
+  },
+  {
+    "sku": "GLW-MSK-001",
+    "nama": "Glowra Hydrating Sheet Mask isi 5",
+    "kategori": "Masker",
+    "harga": 59000
+  },
+  {
+    "sku": "GLW-SET-001",
+    "nama": "Glowra Bright Skin Starter Kit",
+    "kategori": "Paket",
+    "harga": 249000
+  }
+]

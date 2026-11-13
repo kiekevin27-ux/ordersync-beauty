@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cariProduk } from "@/lib/produk";
 import type { HasilCheckout, PermintaanCheckout } from "@/lib/tipe";
+import { pingCekStok } from "@/lib/cekStok";
 
 /**
  * POST /api/checkout
@@ -70,7 +71,7 @@ export async function POST(req: Request) {
   if (!url) {
     return balas({
       ...kosong, hasil: "tidak_terhubung", dikirim: payload,
-      pesan: "N8N_WEBHOOK_URL belum diisi. Salin web/.env.example menjadi web/.env.local lalu isi alamat webhook.",
+      pesan: "Versi online ini belum tersambung ke n8n (n8n masih berjalan di laptop pemilik demo). Jalankan secara lokal untuk mencoba checkout sampai Google Sheets.",
     }, 503);
   }
 
@@ -95,7 +96,10 @@ export async function POST(req: Request) {
     const dasar = { http_status: res.status, dikirim: payload, diterima, webhook_url: url, durasi_ms: durasi };
     const pesanN8n = typeof diterima?.pesan === "string" ? diterima.pesan : "";
 
-    if (res.status === 200) return balas({ ...dasar, hasil: "tersimpan", pesan: pesanN8n || "Order tercatat" });
+    if (res.status === 200) {
+      pingCekStok();
+      return balas({ ...dasar, hasil: "tersimpan", pesan: pesanN8n || "Order tercatat" });
+    }
     if (res.status === 400) return balas({ ...dasar, hasil: "ditolak", pesan: pesanN8n || "Data order ditolak" }, 400);
     if (res.status === 404) {
       return balas({

@@ -4,7 +4,9 @@
   "private": true,
   "description": "Toko demo Glowra Beauty: checkout dikirim ke workflow n8n 03 (webhook -> Google Sheets)",
   "scripts": {
+    "predev": "node scripts/salin-produk.mjs",
     "dev": "next dev -p 3000",
+    "prebuild": "node scripts/salin-produk.mjs",
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "next lint"
