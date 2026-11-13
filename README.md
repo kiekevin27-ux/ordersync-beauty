@@ -6,6 +6,8 @@
 
 ## Sekilas
 
+🌐 **Demo online:** [toko](https://web-inky-five-78.vercel.app) · [dashboard pemilik toko](https://web-inky-five-78.vercel.app/dashboard) (data langsung dari Google Sheet; checkout & simulator online tampil dalam mode demo karena n8n masih berjalan lokal)
+
 **Order dari mana pun → diperiksa & dirapikan otomatis → tercatat di Google Sheets → stok berkurang sendiri → pemilik dapat notifikasi & dashboard.**
 
 | Toko demo | Hasil checkout: tercatat + jejak tiap langkah |
