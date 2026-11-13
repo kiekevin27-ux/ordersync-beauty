@@ -9,6 +9,7 @@ Tab:
   Stok              stok awal, terjual, retur, stok akhir, status AMAN/RESTOCK
   Laba_per_Channel  ringkasan per channel + cek kecocokan omzet
   Order_Masuk       tab kosong (header saja) tujuan tulis workflow n8n 03 (webhook -> Google Sheets)
+  Log_Import        tab kosong, diisi ringkasan tiap import file export (workflow 05)
 
 Di akhir, script menghitung ulang semua angka dengan Python biasa (tanpa rumus) supaya hasil
 rumus di spreadsheet bisa dicocokkan.
@@ -312,6 +313,7 @@ def main():
     tab_stok(wb, len(produk))
     tab_laba(wb)
     tab_order_masuk(wb)
+    wb.create_sheet("Log_Import")  # kosong: header dibuat otomatis oleh workflow 05 saat import pertama
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     wb.save(OUT_PATH)
     print(f"Workbook tersimpan: {OUT_PATH.relative_to(ROOT)}  ({len(orders)} pesanan, {len(produk)} produk)")

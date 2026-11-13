@@ -54,6 +54,9 @@ flowchart LR
 - `channel`: `shopee`, `tiktok`, `whatsapp`, atau `website`.
 - `harga_satuan` **opsional**. Kalau diisi, kolom `subtotal` ikut dihitung. Kalau tidak, dibiarkan kosong.
 - **Format lama (1 produk) tetap diterima**: `"sku": "...", "qty": 2` tanpa `items`. Jadi contoh order dari workflow 02 masih jalan.
+- `status_pesanan` (opsional): `baru` (bawaan), `diproses`, `dikirim`, `selesai`, `batal`, `retur`. `tanggal_pesanan` (opsional): `YYYY-MM-DD HH:mm`, bawaannya waktu terima.
+- `no_hp` boleh kosong atau disamarkan (`******34`) **khusus** channel `shopee`/`tiktok`, karena API marketplace sering menyembunyikannya.
+- **Banyak order sekaligus:** `{ "orders": [ {...}, {...} ] }` (maks 2.000). Semua baris ditulis dalam **satu** panggilan ke Google. Order yang rusak ditolak satu per satu, yang lain tetap tercatat (`status: diterima_sebagian`). Dipakai oleh import file export ([`08`](08-import-export-drive.md)).
 
 ### Dua keputusan penting di node Google Sheets
 
@@ -79,7 +82,7 @@ Ada 3 bagian: **(A)** siapkan Google Sheet, **(B)** buat "akun robot" Google, **
 1. Buka **https://drive.google.com**, lalu klik **Baru → Upload file**. Pilih `C:\Users\Kevin\ordersync-beauty\sheets\glowra_fondasi.xlsx`.
 2. Klik kanan file yang sudah ter-upload → **Buka dengan → Google Spreadsheet**.
 3. Di Google Sheets: **File → Simpan sebagai Google Spreadsheet**. (Penting: n8n hanya bisa menulis ke format Google Sheets asli, bukan ke file `.xlsx`.)
-4. Pastikan ada tab **`Order_Masuk`** yang berisi 13 header di baris 1: `diterima_pada_wib`, `id_baris`, `channel`, `no_pesanan`, `sku`, `qty`, `harga_satuan`, `subtotal`, `nama_pembeli`, `no_hp_normal`, `no_hp_asli`, `status`, `catatan`. **Jangan ubah nama header**, karena n8n mencocokkan kolom berdasarkan nama itu.
+4. Pastikan ada tab **`Order_Masuk`** (header di baris 1). Kolom yang belum ada, misalnya `status_pesanan` dan `tanggal_pesanan`, akan **ditambahkan otomatis** di ujung kanan saat order pertama masuk, karena node Google Sheets memakai mode *auto-map*. Jangan ubah nama header yang sudah ada. **Jangan ubah nama header**, karena n8n mencocokkan kolom berdasarkan nama itu.
 5. Salin **URL** sheet dari address bar (`https://docs.google.com/spreadsheets/d/…/edit`).
 
 ### B. Buat Service Account ("akun robot" Google)

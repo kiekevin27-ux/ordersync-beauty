@@ -20,7 +20,7 @@ Glowra Beauty jualan di **3 tempat sekaligus**: Shopee, TikTok Shop, dan WhatsAp
 
 ## 2. Solusi
 
-Fondasi data & otomasi dalam 6 lapis:
+Fondasi data & otomasi dalam 8 lapis:
 
 | Lapis | Yang dilakukan | File |
 |---|---|---|
@@ -30,6 +30,8 @@ Fondasi data & otomasi dalam 6 lapis:
 | **4. Order masuk otomatis** | Webhook n8n menerima order, **menolak data tidak lengkap** dengan pesan jelas, merapikan no HP & nama, lalu membalas JSON | [`n8n/`](n8n/) |
 | **5. Langsung tercatat** | Order yang lolos validasi **otomatis ditulis ke Google Sheets** (tab `Order_Masuk`), termasuk keranjang berisi banyak produk (1 produk = 1 baris). Kiriman ulang tidak bikin baris dobel, dan nomor pesanan 18 digit tetap utuh | [`n8n/03_…`](n8n/03_webhook_ke_google_sheets.json) · [`docs/05`](docs/05-webhook-ke-google-sheets.md) |
 | **6. Toko demo** | Website toko Glowra (Next.js): katalog → keranjang → checkout → n8n → Google Sheets, dengan panel **"Di balik layar"** yang menunjukkan setiap langkah & JSON-nya. Untuk demo langsung ke calon klien | [`web/`](web/) · [`docs/06`](docs/06-toko-demo-website.md) |
+| **7. Notifikasi marketplace** | Pola API resmi Shopee & TikTok: notifikasi → **ambil detail order** → terjemahkan → gerbang. Status pesanan (diproses → dikirim → selesai/batal) ikut diperbarui di sheet. Dicoba lewat halaman **Simulator** tanpa akun developer | [`n8n/04_…`](n8n/04_webhook_marketplace.json) · [`docs/07`](docs/07-simulator-marketplace.md) |
+| **8. Import file export** | Seller taruh file export Shopee/TikTok di folder **Google Drive** → n8n membersihkan (dobel, SKU typo, status, tanggal) → ratusan order tercatat dalam 1 kali tulis + ringkasan di tab `Log_Import`. **Tanpa izin API** | [`n8n/05_…`](n8n/05_import_export_drive.json) · [`docs/08`](docs/08-import-export-drive.md) |
 
 ## 3. Arsitektur
 
@@ -69,6 +71,8 @@ flowchart LR
     CFG --> BW
     SYS["Form / chatbot /<br/>API marketplace"] -->|JSON| WH --> VAL
     WEB["🛍️ Toko demo<br/>web/ (Next.js)"] -->|"checkout JSON<br/>workflow 03"| WH
+    MP["🔔 Notifikasi Shopee/TikTok<br/>(simulator)"] -->|"04: ambil detail<br/>+ terjemahkan"| WH
+    DRV[("📁 Folder Drive<br/>file export")] -->|"05: bersihkan<br/>banyak order"| WH
     VAL -- lengkap --> NORM --> R200
     VAL -- tidak --> R400
     NORM -->|workflow 03| GS -->|RAW| OM
@@ -78,7 +82,7 @@ flowchart LR
     classDef src fill:#fde2e4,stroke:#c9184a,color:#111;
     classDef ok fill:#d8f3dc,stroke:#2d6a4f,color:#111;
     classDef bad fill:#fff3b0,stroke:#e09f3e,color:#111;
-    class SP,TT,WA,WEB src;
+    class SP,TT,WA,WEB,MP,DRV src;
     class R200,XL,OM,GS ok;
     class R400,R500 bad;
 ```
@@ -125,6 +129,9 @@ Keputusan teknologi dan alasannya dicatat di [`ADR-001`](docs/adr/ADR-001-stack-
 - Workflow n8n **diuji di n8n 2.47.4**: API publik → 5 produk. Webhook → **200** untuk order valid, **400** untuk order rusak, **404** untuk URL salah.
 - Workflow 03 **diuji di n8n 2.47.4 yang berjalan sungguhan**: order rusak → **400**, keranjang dengan SKU dobel → **400**, kredensial Google palsu → **500** dengan detail error (bukan pura-pura sukses), dan jalur sukses (node Google diganti simulasi) → **200**. Header tab `Order_Masuk` diambil dari satu sumber yang sama dengan pemetaan kolom di workflow. *Penulisan ke Google Sheets asli belum diuji* karena butuh service account pemilik.
 - Toko demo diuji end-to-end di browser (Edge): keranjang 3 produk → 200, total Rp414.000 cocok; kirim ulang → baris tidak bertambah; order rusak → 400; harga palsu dari browser diabaikan.
+- **Tersambung ke Google Sheets asli** (service account): penulisan, upsert, dan kiriman banyak order sekaligus terverifikasi.
+- Workflow 04 diuji dengan 6 skenario (Shopee HP disamarkan, TikTok qty 3 digabung, status → selesai memperbarui baris, belum bayar diabaikan, notifikasi asing → 400, order tidak ada → 500).
+- Pembersih workflow 05 menghasilkan angka **sama persis** dengan `clean_merge.py` (Shopee 200 order, TikTok 100 order).
 
 ## 5. Tech stack
 
@@ -132,7 +139,7 @@ Keputusan teknologi dan alasannya dicatat di [`ADR-001`](docs/adr/ADR-001-stack-
 |---|---|
 | Generator & cleaning data | Python 3.12 (`csv`, `random`, `re`, tanpa library tambahan) |
 | Spreadsheet | `openpyxl` → `.xlsx` → Google Sheets (SUMIFS, COUNTIFS, XLOOKUP, IF) |
-| Otomasi | n8n: Manual Trigger, HTTP Request, Split Out, Edit Fields, Webhook, Code, IF, Respond to Webhook, Google Sheets (Service Account) |
+| Otomasi | n8n: Manual Trigger, HTTP Request, Split Out, Edit Fields, Webhook, Code, IF, Respond to Webhook, Google Sheets & Google Drive Trigger (Service Account), Extract From File |
 | Toko demo | Next.js 14 (App Router) + TypeScript + Tailwind CSS |
 | Diagram | Mermaid (ter-render langsung di GitHub) |
 | Format data | CSV UTF-8 with BOM, JSON |
@@ -143,6 +150,8 @@ Keputusan teknologi dan alasannya dicatat di [`ADR-001`](docs/adr/ADR-001-stack-
 |---|---|---|
 | ✅ **Selesai** | Webhook order → **langsung tertulis ke Google Sheets** (anti dobel, keranjang multi-produk) | Tidak ada lagi input manual order WA |
 | ✅ **Selesai** | **Toko demo** yang tersambung ke workflow | Calon klien bisa mencoba alurnya sendiri |
+| ✅ **Selesai** | **Simulator notifikasi marketplace** (pola API Shopee/TikTok) + status pesanan ikut diperbarui | Siap dipindah ke API asli begitu ada izin partner |
+| ✅ **Selesai** | **Import file export via Google Drive** | Bisa langsung dipakai seller tanpa izin API |
 | **Berikutnya** | **Follow-up WA otomatis**: pengingat H+25 setelah pembelian (skincare habis ±1 bulan), ucapan terima kasih, minta review. Lewat WhatsApp Business Platform resmi | Repeat order naik tanpa admin harus ingat |
 | | Notifikasi ke owner saat produk masuk status RESTOCK | Tidak kehabisan produk andalan |
 | **Menengah** | **Sinkron stok real-time** antar channel via API resmi Shopee & TikTok (butuh otorisasi toko & persetujuan app partner) | Overselling hilang |
@@ -158,7 +167,9 @@ Keputusan teknologi dan alasannya dicatat di [`ADR-001`](docs/adr/ADR-001-stack-
 python scripts/generate_dummy.py   # 1. buat data dummy (seed 42)
 python scripts/clean_merge.py      # 2. bersihkan & gabungkan, lalu tampilkan laporan
 python scripts/build_workbook.py   # 3. buat sheets/glowra_fondasi.xlsx
-python scripts/build_workflow_03.py # 4. buat n8n/03_webhook_ke_google_sheets.json
+python scripts/build_workflow_03.py # 4. buat workflow n8n 03 (gerbang order)
+python scripts/build_workflow_04.py #    workflow 04 (notifikasi marketplace)
+python scripts/build_workflow_05.py #    workflow 05 (import export Drive)
 ```
 
 Lalu:
@@ -166,6 +177,8 @@ Lalu:
 - Import workflow n8n, ikuti [`docs/04-api-webhook-penjelasan.md`](docs/04-api-webhook-penjelasan.md).
 - Sambungkan ke Google Sheets (workflow 03), ikuti [`docs/05-webhook-ke-google-sheets.md`](docs/05-webhook-ke-google-sheets.md).
 - Coba alurnya dari sisi pembeli lewat toko demo, ikuti [`docs/06-toko-demo-website.md`](docs/06-toko-demo-website.md).
+- Coba notifikasi marketplace di `/simulator`, ikuti [`docs/07-simulator-marketplace.md`](docs/07-simulator-marketplace.md).
+- Coba import file export lewat Google Drive, ikuti [`docs/08-import-export-drive.md`](docs/08-import-export-drive.md).
 
 ## 8. Struktur repo
 
@@ -178,9 +191,9 @@ ordersync-beauty/
 │   ├── master_produk.csv           ← 15 produk
 │   ├── raw/                        ← export mentah Shopee, TikTok, WA
 │   └── clean/orders_gabungan.csv   ← hasil gabungan bersih
-├── scripts/                        ← generate_dummy · clean_merge · build_workbook · build_workflow_03
+├── scripts/                        ← generate_dummy · clean_merge · build_workbook · build_workflow_03/04/05
 ├── sheets/glowra_fondasi.xlsx      ← workbook berisi rumus
-├── n8n/                            ← 3 workflow + contoh payload tes
+├── n8n/                            ← 5 workflow + contoh payload tes
 ├── web/                            ← toko demo Glowra (Next.js)
 └── docs/
     ├── adr/ADR-001-stack-fondasi.md
@@ -190,7 +203,9 @@ ordersync-beauty/
     ├── 03-panduan-google-sheets.md
     ├── 04-api-webhook-penjelasan.md
     ├── 05-webhook-ke-google-sheets.md
-    └── 06-toko-demo-website.md
+    ├── 06-toko-demo-website.md
+    ├── 07-simulator-marketplace.md
+    └── 08-import-export-drive.md
 ```
 
 ---
