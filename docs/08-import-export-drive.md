@@ -12,12 +12,14 @@ Cara paling realistis untuk UMKM: **tidak perlu izin API**. Semua seller bisa do
 flowchart LR
     U["Seller upload<br/>export .csv/.xlsx"] --> D[("Folder<br/>Google Drive")]
     D -->|"dicek tiap menit"| T["05: File baru?"]
-    T --> DL["Download"] --> RD["Baca CSV / Excel"]
+    T --> LP["Satu file<br/>per putaran"] --> DL["Download"] --> RD["Baca CSV / Excel"]
     RD --> BR["Kenali platform<br/>& bersihkan"]
-    BR -->|"tidak bisa"| ER["❌ Error di<br/>Executions n8n"]
+    BR -->|"tidak bisa"| ER["❌ Dicatat GAGAL<br/>+ alasannya"]
     BR -->|"N order"| G["Gerbang 03<br/>(1x kirim)"]
     G --> S[("Order_Masuk")]
     G --> L[("Log_Import")]
+    ER --> L
+    L -->|"file berikutnya"| LP
 
     classDef ok fill:#d8f3dc,stroke:#2d6a4f,color:#111;
     classDef err fill:#fde2e4,stroke:#c9184a,color:#111;
@@ -38,6 +40,8 @@ flowchart LR
 | Baris keterangan di bawah header (ada di sebagian export TikTok) | Dilewati |
 | Nama kolom alternatif (`Nomor Referensi SKU` / `SKU Induk`, `Harga Setelah Diskon` / `Harga Awal`) | Dipilih yang ada |
 | Nomor HP & nama berantakan | Dirapikan oleh gerbang 03 |
+
+Kalau beberapa file di-upload bersamaan, n8n memprosesnya **satu per satu** supaya isi file Shopee dan TikTok tidak tercampur. File yang tidak bisa diimport tetap dicatat di `Log_Import` beserta alasannya.
 
 Semua order dari satu file dikirim ke gerbang **dalam satu kali kirim**. Ini penting karena Google Sheets membatasi jumlah penulisan per menit; ratusan order yang dikirim satu per satu akan kena batas.
 
@@ -76,8 +80,8 @@ Setiap import menambah 1 baris ringkasan: waktu, nama file, platform, jumlah bar
 |---|---|---|
 | File di-upload tapi tidak ada yang terjadi | Folder belum dibagikan ke robot, atau workflow belum di-Publish | Cek langkah setup 2 & 5 |
 | Error *Google Drive API has not been used* | Drive API belum di-enable | console.cloud.google.com → Library → **Google Drive API** → Enable |
-| Execution merah: *bukan file export Shopee/TikTok* | File lain (atau kolom header diubah) | Upload file export asli tanpa diedit |
-| Execution merah: *kolom wajib tidak ditemukan* | Versi export punya nama kolom berbeda | Tambahkan nama kolom itu ke `KOLOM` di node *Kenali & Bersihkan Export* (atau di `scripts/build_workflow_05.py`) |
+| `Log_Import` berisi *GAGAL: bukan file export Shopee/TikTok* | File lain (atau kolom header diubah) | Upload file export asli tanpa diedit |
+| `Log_Import` berisi *GAGAL: kolom wajib tidak ditemukan* | Versi export punya nama kolom berbeda | Tambahkan nama kolom itu ke `KOLOM` di node *Kenali & Bersihkan Export* (atau di `scripts/build_workflow_05.py`) |
 | `Log_Import` kosong padahal order masuk | Tab `Log_Import` belum dibuat atau namanya beda | Buat tab dengan nama persis `Log_Import` |
 
 ## Batasan (jujur ke klien)

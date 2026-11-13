@@ -5,13 +5,14 @@ Workflow 05 = IMPORT FILE EXPORT MARKETPLACE lewat Google Drive.
 
 Cara pakai oleh seller: download file export pesanan dari Shopee Seller Centre / TikTok Seller
 Center, lalu taruh (upload) ke satu folder Google Drive. n8n mengecek folder itu tiap menit:
-  1. File baru terdeteksi → di-download.
+  1. File baru terdeteksi. Kalau ada beberapa file sekaligus, diproses SATU PER SATU (loop),
+     supaya isi file Shopee & TikTok tidak tercampur. Lalu di-download.
   2. Dibaca (CSV atau Excel .xlsx).
   3. Platform dikenali dari nama kolom (Shopee berbahasa Indonesia, TikTok berbahasa Inggris).
   4. Dibersihkan (logika sama dengan scripts/clean_merge.py): baris dobel dibuang, SKU typo
      diperbaiki, status & tanggal diseragamkan, baris per produk dikelompokkan per order.
   5. SEMUA order dikirim sekaligus ke GERBANG ORDER (workflow 03) → 1 kali tulis ke Google Sheets.
-  6. Ringkasan import dicatat ke tab Log_Import (kalau tab itu ada).
+  6. Ringkasan import dicatat ke tab Log_Import, termasuk file yang GAGAL (beserta alasannya).
 
 Tidak butuh izin API marketplace: cukup akses seller ke menu export (100% data asli).
 
@@ -28,7 +29,7 @@ OUT_PATH = ROOT / "n8n" / "05_import_export_drive.json"
 JS_BERSIHKAN = r"""
 // Kenali platform dari nama kolom, bersihkan, lalu kelompokkan per order.
 // Logika sama dengan scripts/clean_merge.py. Nama kolom alternatif disiapkan untuk export asli.
-const file = $('File Baru di Folder Drive').first().json;
+const file = $('Satu File per Putaran').first().json;   // file yang sedang diproses di putaran ini
 const namaFile = file.name || '(tanpa nama)';
 
 const KOLOM = {
@@ -161,11 +162,26 @@ return [{ json: {
 } }];
 """.strip()
 
+JS_CATAT_GAGAL = r"""
+// File tidak bisa diimport: tetap dicatat di Log_Import supaya pemilik toko tahu alasannya.
+const b = $input.first().json;
+return [{ json: {
+  waktu_import: $now.setZone('Asia/Jakarta').toFormat('yyyy-MM-dd HH:mm:ss'),
+  nama_file: b.nama_file,
+  platform: '-',
+  baris_mentah: 0, duplikat_dibuang: 0, sku_diperbaiki: 0, belum_dibayar_dilewati: 0, baris_bermasalah: 0,
+  order_dikirim: 0,
+  hasil_gerbang: 'GAGAL: file tidak diimport',
+  order_tercatat: 0, baris_tercatat: 0, order_ditolak: 0,
+  catatan: b.alasan,
+} }];
+""".strip()
+
 CATATAN = (
     "## 05 · Import File Export (Google Drive)\n\n"
     "**Seller cukup:** download export pesanan dari Shopee / TikTok Seller Center → upload ke folder "
     "Google Drive. n8n cek folder **tiap menit**.\n\n"
-    "**Alur:** file baru → download → baca CSV/XLSX → kenali platform → **bersihkan** (dobel, SKU typo, "
+    "**Alur:** file baru (satu per satu) → download → baca CSV/XLSX → kenali platform → **bersihkan** (dobel, SKU typo, "
     "status, tanggal) → kelompokkan per order → **gerbang 03** (sekali kirim) → catat ke tab `Log_Import`.\n\n"
     "**Upload ulang file yang sama aman:** baris di sheet diperbarui, tidak dobel.\n\n"
     "**Sebelum dipakai:** kredensial Google + folder Drive di node pertama (folder dibagikan ke email robot). "
@@ -192,7 +208,11 @@ def main():
             "options": {},
         },
          "id": nid(2), "name": "File Baru di Folder Drive", "type": "n8n-nodes-base.googleDriveTrigger",
-         "typeVersion": 1, "position": [0, 0]},
+         "typeVersion": 1, "position": [-240, 0]},
+        # Beberapa file bisa terdeteksi sekaligus: proses satu per satu supaya isinya tidak tercampur.
+        {"parameters": {"batchSize": 1, "options": {}},
+         "id": nid(13), "name": "Satu File per Putaran", "type": "n8n-nodes-base.splitInBatches",
+         "typeVersion": 3, "position": [0, 0]},
         {"parameters": {
             "authentication": "serviceAccount",
             "operation": "download",
@@ -211,7 +231,7 @@ def main():
                 "options": {"caseSensitive": False, "leftValue": "", "typeValidation": "loose"},
                 "conditions": [{
                     "id": "d5000005-0000-4000-8000-000000000001",
-                    "leftValue": "={{ ($('File Baru di Folder Drive').first().json.name || '').toLowerCase().endsWith('.csv') }}",
+                    "leftValue": "={{ ($('Satu File per Putaran').first().json.name || '').toLowerCase().endsWith('.csv') }}",
                     "rightValue": "",
                     "operator": {"type": "boolean", "operation": "true", "singleValue": True},
                 }],
@@ -260,25 +280,28 @@ def main():
             "options": {"cellFormat": "RAW", "handlingExtraData": "insertInNewColumn"},
         },
          "id": nid(11), "name": "Catat ke Log_Import", "type": "n8n-nodes-base.googleSheets",
-         "typeVersion": 4.7, "position": [1920, -100], "onError": "continueRegularOutput"},
-        {"parameters": {"errorMessage": "={{ $json.alasan }}"},
-         "id": nid(12), "name": "Gagal: File Tidak Bisa Diimport", "type": "n8n-nodes-base.stopAndError",
-         "typeVersion": 1, "position": [1440, 100]},
+         "typeVersion": 4.7, "position": [1920, 0], "onError": "continueRegularOutput", "alwaysOutputData": True},
+        {"parameters": {"jsCode": JS_CATAT_GAGAL}, "id": nid(12), "name": "Catat File Gagal",
+         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1680, 100]},
     ]
 
     def ke(*target):
         return {"main": [[{"node": t, "type": "main", "index": 0}] for t in target]}
 
     connections = {
-        "File Baru di Folder Drive": ke("Download File"),
+        "File Baru di Folder Drive": ke("Satu File per Putaran"),
+        # output 0 = "done" (semua file selesai, tidak ada lanjutan), output 1 = "loop" (file berikutnya)
+        "Satu File per Putaran": {"main": [[], [{"node": "Download File", "type": "main", "index": 0}]]},
         "Download File": ke("File CSV?"),
         "File CSV?": ke("Baca CSV", "Baca Excel"),
         "Baca CSV": ke("Kenali & Bersihkan Export"),
         "Baca Excel": ke("Kenali & Bersihkan Export"),
         "Kenali & Bersihkan Export": ke("File Bisa Diimport?"),
-        "File Bisa Diimport?": ke("Kirim ke Gerbang Order (workflow 03)", "Gagal: File Tidak Bisa Diimport"),
+        "File Bisa Diimport?": ke("Kirim ke Gerbang Order (workflow 03)", "Catat File Gagal"),
+        "Catat File Gagal": ke("Catat ke Log_Import"),
         "Kirim ke Gerbang Order (workflow 03)": ke("Ringkasan Import"),
         "Ringkasan Import": ke("Catat ke Log_Import"),
+        "Catat ke Log_Import": ke("Satu File per Putaran"),   # kembali ke loop: ambil file berikutnya
     }
 
     wf = {

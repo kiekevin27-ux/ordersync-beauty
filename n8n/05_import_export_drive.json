@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## 05 · Import File Export (Google Drive)\n\n**Seller cukup:** download export pesanan dari Shopee / TikTok Seller Center → upload ke folder Google Drive. n8n cek folder **tiap menit**.\n\n**Alur:** file baru → download → baca CSV/XLSX → kenali platform → **bersihkan** (dobel, SKU typo, status, tanggal) → kelompokkan per order → **gerbang 03** (sekali kirim) → catat ke tab `Log_Import`.\n\n**Upload ulang file yang sama aman:** baris di sheet diperbarui, tidak dobel.\n\n**Sebelum dipakai:** kredensial Google + folder Drive di node pertama (folder dibagikan ke email robot). Panduan: `docs/08-import-export-drive.md`.",
+        "content": "## 05 · Import File Export (Google Drive)\n\n**Seller cukup:** download export pesanan dari Shopee / TikTok Seller Center → upload ke folder Google Drive. n8n cek folder **tiap menit**.\n\n**Alur:** file baru (satu per satu) → download → baca CSV/XLSX → kenali platform → **bersihkan** (dobel, SKU typo, status, tanggal) → kelompokkan per order → **gerbang 03** (sekali kirim) → catat ke tab `Log_Import`.\n\n**Upload ulang file yang sama aman:** baris di sheet diperbarui, tidak dobel.\n\n**Sebelum dipakai:** kredensial Google + folder Drive di node pertama (folder dibagikan ke email robot). Panduan: `docs/08-import-export-drive.md`.",
         "height": 420,
         "width": 660,
         "color": 7
@@ -40,6 +40,20 @@
       "name": "File Baru di Folder Drive",
       "type": "n8n-nodes-base.googleDriveTrigger",
       "typeVersion": 1,
+      "position": [
+        -240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "c5f0c005-0000-4000-8000-000000000013",
+      "name": "Satu File per Putaran",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
       "position": [
         0,
         0
@@ -83,7 +97,7 @@
           "conditions": [
             {
               "id": "d5000005-0000-4000-8000-000000000001",
-              "leftValue": "={{ ($('File Baru di Folder Drive').first().json.name || '').toLowerCase().endsWith('.csv') }}",
+              "leftValue": "={{ ($('Satu File per Putaran').first().json.name || '').toLowerCase().endsWith('.csv') }}",
               "rightValue": "",
               "operator": {
                 "type": "boolean",
@@ -137,7 +151,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Kenali platform dari nama kolom, bersihkan, lalu kelompokkan per order.\n// Logika sama dengan scripts/clean_merge.py. Nama kolom alternatif disiapkan untuk export asli.\nconst file = $('File Baru di Folder Drive').first().json;\nconst namaFile = file.name || '(tanpa nama)';\n\nconst KOLOM = {\n  shopee: {\n    no: ['No. Pesanan'], status: ['Status Pesanan'], tgl: ['Waktu Pesanan Dibuat'],\n    sku: ['Nomor Referensi SKU', 'SKU Induk'], qty: ['Jumlah'],\n    harga: ['Harga Setelah Diskon', 'Harga Awal'], nama: ['Nama Penerima'], hp: ['No. Telepon'],\n  },\n  tiktok: {\n    no: ['Order ID'], status: ['Order Status'], tgl: ['Created Time'],\n    sku: ['Seller SKU'], qty: ['Quantity'],\n    harga: ['SKU Unit Original Price'], nama: ['Recipient'], hp: ['Phone #'],\n  },\n};\n// null = tidak dicatat (belum dibayar)\nconst STATUS = {\n  shopee: { 'Selesai': 'selesai', 'Sedang Dikirim': 'dikirim', 'Telah Dikirim': 'dikirim', 'Perlu Dikirim': 'diproses',\n            'Sudah Dikemas': 'diproses', 'Batal': 'batal', 'Dibatalkan': 'batal', 'Pengembalian Barang/Dana': 'retur',\n            'Belum Bayar': null },\n  tiktok: { 'Completed': 'selesai', 'Delivered': 'dikirim', 'Shipped': 'dikirim', 'In transit': 'dikirim',\n            'Awaiting Shipment': 'diproses', 'Awaiting Collection': 'diproses', 'To ship': 'diproses',\n            'Cancelled': 'batal', 'Canceled': 'batal', 'Returned': 'retur', 'Unpaid': null },\n};\n\n// Rapikan nama kolom: buang BOM (﻿) & spasi di tepi.\nconst baris = $input.all().map((i) => {\n  const r = {};\n  for (const [k, v] of Object.entries(i.json)) r[String(k).replace(/^﻿/, '').trim()] = v;\n  return r;\n});\nconst gagal = (alasan) => [{ json: { ok: false, alasan: `${namaFile}: ${alasan}`, nama_file: namaFile } }];\nif (baris.length === 0) return gagal('file kosong');\n\nconst header = Object.keys(baris[0]);\nconst platform = header.includes('No. Pesanan') ? 'shopee' : header.includes('Order ID') ? 'tiktok' : null;\nif (!platform) return gagal(`bukan file export Shopee/TikTok (kolom: ${header.slice(0, 6).join(', ')}…)`);\n\nconst K = KOLOM[platform];\nconst ambil = (r, daftar) => {\n  for (const k of daftar) if (r[k] !== undefined && String(r[k]).trim() !== '') return String(r[k]).trim();\n  return '';\n};\nconst kolomHilang = Object.entries(K).filter(([, d]) => !d.some((k) => header.includes(k))).map(([n]) => n);\nif (kolomHilang.length) return gagal(`kolom wajib tidak ditemukan: ${kolomHilang.join(', ')}`);\n\nfunction rapikanSku(mentah) {   // 'GLW-SRM-01' / 'glw-sns001 ' -> 'GLW-SRM-001'\n  const m = mentah.replace(/\\s+/g, '').toUpperCase().match(/^GLW-?([A-Z]{3})-?(\\d{1,3})$/);\n  return m ? `GLW-${m[1]}-${m[2].padStart(3, '0')}` : null;\n}\nfunction tanggal(mentah) {\n  let m = mentah.match(/^(\\d{4})-(\\d{2})-(\\d{2})[ T](\\d{2}):(\\d{2})/);              // Shopee 2026-11-11 23:02\n  if (m) return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}`;\n  m = mentah.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4}) (\\d{2}):(\\d{2})/);                     // TikTok 12/08/2026 00:40:50\n  if (m) return `${m[3]}-${m[2]}-${m[1]} ${m[4]}:${m[5]}`;\n  return '';\n}\nconst angka = (t) => Number(String(t).replace(/[^\\d.]/g, ''));\n\nconst laporan = { platform, baris_mentah: baris.length, duplikat_dibuang: 0, sku_diperbaiki: 0,\n                  belum_dibayar_dilewati: 0, dilewati: [] };\nconst lewati = (i, no, alasan) => { if (laporan.dilewati.length < 50) laporan.dilewati.push({ baris: i + 2, no_pesanan: no, alasan }); };\n\nconst order = new Map();\nconst terlihat = new Set();\nbaris.forEach((r, i) => {\n  const no = ambil(r, K.no);\n  // Export TikTok asli kadang punya baris keterangan di bawah header: Order ID-nya bukan angka.\n  if (!no || (platform === 'tiktok' && !/^\\d+$/.test(no))) { lewati(i, no || null, 'no pesanan kosong/bukan data'); return; }\n\n  const statusMentah = ambil(r, K.status);\n  const status = STATUS[platform][statusMentah];\n  if (status === null) { laporan.belum_dibayar_dilewati++; return; }\n  if (status === undefined) { lewati(i, no, `status \"${statusMentah}\" tidak dikenal`); return; }\n\n  const skuMentah = ambil(r, K.sku);\n  const sku = rapikanSku(skuMentah);\n  if (!sku) { lewati(i, no, `SKU \"${skuMentah}\" tidak dikenali`); return; }\n  if (sku !== skuMentah) laporan.sku_diperbaiki++;\n\n  const kunci = `${no}|${sku}`;\n  if (terlihat.has(kunci)) { laporan.duplikat_dibuang++; return; }\n  terlihat.add(kunci);\n\n  const qty = angka(ambil(r, K.qty));\n  const harga = Math.round(angka(ambil(r, K.harga)));\n  if (!(qty > 0)) { lewati(i, no, 'jumlah tidak valid'); return; }\n\n  if (!order.has(no)) {\n    order.set(no, {\n      channel: platform,\n      no_pesanan: no,\n      nama_pembeli: ambil(r, K.nama),\n      no_hp: ambil(r, K.hp),\n      status_pesanan: status,\n      tanggal_pesanan: tanggal(ambil(r, K.tgl)),\n      items: [],\n    });\n  }\n  order.get(no).items.push({ sku, qty, harga_satuan: harga });\n});\n\nconst orders = [...order.values()];\nlaporan.jumlah_order = orders.length;\nlaporan.jumlah_baris_produk = orders.reduce((s, o) => s + o.items.length, 0);\nif (orders.length === 0) return gagal('tidak ada order yang bisa diimport');\nreturn [{ json: { ok: true, nama_file: namaFile, laporan, payload: { orders } } }];"
+        "jsCode": "// Kenali platform dari nama kolom, bersihkan, lalu kelompokkan per order.\n// Logika sama dengan scripts/clean_merge.py. Nama kolom alternatif disiapkan untuk export asli.\nconst file = $('Satu File per Putaran').first().json;   // file yang sedang diproses di putaran ini\nconst namaFile = file.name || '(tanpa nama)';\n\nconst KOLOM = {\n  shopee: {\n    no: ['No. Pesanan'], status: ['Status Pesanan'], tgl: ['Waktu Pesanan Dibuat'],\n    sku: ['Nomor Referensi SKU', 'SKU Induk'], qty: ['Jumlah'],\n    harga: ['Harga Setelah Diskon', 'Harga Awal'], nama: ['Nama Penerima'], hp: ['No. Telepon'],\n  },\n  tiktok: {\n    no: ['Order ID'], status: ['Order Status'], tgl: ['Created Time'],\n    sku: ['Seller SKU'], qty: ['Quantity'],\n    harga: ['SKU Unit Original Price'], nama: ['Recipient'], hp: ['Phone #'],\n  },\n};\n// null = tidak dicatat (belum dibayar)\nconst STATUS = {\n  shopee: { 'Selesai': 'selesai', 'Sedang Dikirim': 'dikirim', 'Telah Dikirim': 'dikirim', 'Perlu Dikirim': 'diproses',\n            'Sudah Dikemas': 'diproses', 'Batal': 'batal', 'Dibatalkan': 'batal', 'Pengembalian Barang/Dana': 'retur',\n            'Belum Bayar': null },\n  tiktok: { 'Completed': 'selesai', 'Delivered': 'dikirim', 'Shipped': 'dikirim', 'In transit': 'dikirim',\n            'Awaiting Shipment': 'diproses', 'Awaiting Collection': 'diproses', 'To ship': 'diproses',\n            'Cancelled': 'batal', 'Canceled': 'batal', 'Returned': 'retur', 'Unpaid': null },\n};\n\n// Rapikan nama kolom: buang BOM (﻿) & spasi di tepi.\nconst baris = $input.all().map((i) => {\n  const r = {};\n  for (const [k, v] of Object.entries(i.json)) r[String(k).replace(/^﻿/, '').trim()] = v;\n  return r;\n});\nconst gagal = (alasan) => [{ json: { ok: false, alasan: `${namaFile}: ${alasan}`, nama_file: namaFile } }];\nif (baris.length === 0) return gagal('file kosong');\n\nconst header = Object.keys(baris[0]);\nconst platform = header.includes('No. Pesanan') ? 'shopee' : header.includes('Order ID') ? 'tiktok' : null;\nif (!platform) return gagal(`bukan file export Shopee/TikTok (kolom: ${header.slice(0, 6).join(', ')}…)`);\n\nconst K = KOLOM[platform];\nconst ambil = (r, daftar) => {\n  for (const k of daftar) if (r[k] !== undefined && String(r[k]).trim() !== '') return String(r[k]).trim();\n  return '';\n};\nconst kolomHilang = Object.entries(K).filter(([, d]) => !d.some((k) => header.includes(k))).map(([n]) => n);\nif (kolomHilang.length) return gagal(`kolom wajib tidak ditemukan: ${kolomHilang.join(', ')}`);\n\nfunction rapikanSku(mentah) {   // 'GLW-SRM-01' / 'glw-sns001 ' -> 'GLW-SRM-001'\n  const m = mentah.replace(/\\s+/g, '').toUpperCase().match(/^GLW-?([A-Z]{3})-?(\\d{1,3})$/);\n  return m ? `GLW-${m[1]}-${m[2].padStart(3, '0')}` : null;\n}\nfunction tanggal(mentah) {\n  let m = mentah.match(/^(\\d{4})-(\\d{2})-(\\d{2})[ T](\\d{2}):(\\d{2})/);              // Shopee 2026-11-11 23:02\n  if (m) return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}`;\n  m = mentah.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4}) (\\d{2}):(\\d{2})/);                     // TikTok 12/08/2026 00:40:50\n  if (m) return `${m[3]}-${m[2]}-${m[1]} ${m[4]}:${m[5]}`;\n  return '';\n}\nconst angka = (t) => Number(String(t).replace(/[^\\d.]/g, ''));\n\nconst laporan = { platform, baris_mentah: baris.length, duplikat_dibuang: 0, sku_diperbaiki: 0,\n                  belum_dibayar_dilewati: 0, dilewati: [] };\nconst lewati = (i, no, alasan) => { if (laporan.dilewati.length < 50) laporan.dilewati.push({ baris: i + 2, no_pesanan: no, alasan }); };\n\nconst order = new Map();\nconst terlihat = new Set();\nbaris.forEach((r, i) => {\n  const no = ambil(r, K.no);\n  // Export TikTok asli kadang punya baris keterangan di bawah header: Order ID-nya bukan angka.\n  if (!no || (platform === 'tiktok' && !/^\\d+$/.test(no))) { lewati(i, no || null, 'no pesanan kosong/bukan data'); return; }\n\n  const statusMentah = ambil(r, K.status);\n  const status = STATUS[platform][statusMentah];\n  if (status === null) { laporan.belum_dibayar_dilewati++; return; }\n  if (status === undefined) { lewati(i, no, `status \"${statusMentah}\" tidak dikenal`); return; }\n\n  const skuMentah = ambil(r, K.sku);\n  const sku = rapikanSku(skuMentah);\n  if (!sku) { lewati(i, no, `SKU \"${skuMentah}\" tidak dikenali`); return; }\n  if (sku !== skuMentah) laporan.sku_diperbaiki++;\n\n  const kunci = `${no}|${sku}`;\n  if (terlihat.has(kunci)) { laporan.duplikat_dibuang++; return; }\n  terlihat.add(kunci);\n\n  const qty = angka(ambil(r, K.qty));\n  const harga = Math.round(angka(ambil(r, K.harga)));\n  if (!(qty > 0)) { lewati(i, no, 'jumlah tidak valid'); return; }\n\n  if (!order.has(no)) {\n    order.set(no, {\n      channel: platform,\n      no_pesanan: no,\n      nama_pembeli: ambil(r, K.nama),\n      no_hp: ambil(r, K.hp),\n      status_pesanan: status,\n      tanggal_pesanan: tanggal(ambil(r, K.tgl)),\n      items: [],\n    });\n  }\n  order.get(no).items.push({ sku, qty, harga_satuan: harga });\n});\n\nconst orders = [...order.values()];\nlaporan.jumlah_order = orders.length;\nlaporan.jumlah_baris_produk = orders.reduce((s, o) => s + o.items.length, 0);\nif (orders.length === 0) return gagal('tidak ada order yang bisa diimport');\nreturn [{ json: { ok: true, nama_file: namaFile, laporan, payload: { orders } } }];"
       },
       "id": "c5f0c005-0000-4000-8000-000000000007",
       "name": "Kenali & Bersihkan Export",
@@ -255,20 +269,21 @@
       "typeVersion": 4.7,
       "position": [
         1920,
-        -100
+        0
       ],
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
-        "errorMessage": "={{ $json.alasan }}"
+        "jsCode": "// File tidak bisa diimport: tetap dicatat di Log_Import supaya pemilik toko tahu alasannya.\nconst b = $input.first().json;\nreturn [{ json: {\n  waktu_import: $now.setZone('Asia/Jakarta').toFormat('yyyy-MM-dd HH:mm:ss'),\n  nama_file: b.nama_file,\n  platform: '-',\n  baris_mentah: 0, duplikat_dibuang: 0, sku_diperbaiki: 0, belum_dibayar_dilewati: 0, baris_bermasalah: 0,\n  order_dikirim: 0,\n  hasil_gerbang: 'GAGAL: file tidak diimport',\n  order_tercatat: 0, baris_tercatat: 0, order_ditolak: 0,\n  catatan: b.alasan,\n} }];"
       },
       "id": "c5f0c005-0000-4000-8000-000000000012",
-      "name": "Gagal: File Tidak Bisa Diimport",
-      "type": "n8n-nodes-base.stopAndError",
-      "typeVersion": 1,
+      "name": "Catat File Gagal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        1440,
+        1680,
         100
       ]
     }
@@ -276,6 +291,18 @@
   "connections": {
     "File Baru di Folder Drive": {
       "main": [
+        [
+          {
+            "node": "Satu File per Putaran",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Satu File per Putaran": {
+      "main": [
+        [],
         [
           {
             "node": "Download File",
@@ -358,7 +385,18 @@
         ],
         [
           {
-            "node": "Gagal: File Tidak Bisa Diimport",
+            "node": "Catat File Gagal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Catat File Gagal": {
+      "main": [
+        [
+          {
+            "node": "Catat ke Log_Import",
             "type": "main",
             "index": 0
           }
@@ -381,6 +419,17 @@
         [
           {
             "node": "Catat ke Log_Import",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Catat ke Log_Import": {
+      "main": [
+        [
+          {
+            "node": "Satu File per Putaran",
             "type": "main",
             "index": 0
           }
