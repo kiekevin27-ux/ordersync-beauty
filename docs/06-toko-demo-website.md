@@ -52,6 +52,8 @@ Website membaca `data/master_produk.csv`, file yang sama dengan yang dipakai scr
 
 ## Cara menjalankan (lokal)
 
+> **Jalan pintas (kalau n8n & kredensial sudah pernah disiapkan):** klik kanan `C:\Users\Kevin\ordersync-beauty\jalankan-demo.ps1` → **Run with PowerShell**. Script ini menyalakan n8n (data di folder `.n8n`, tidak ikut ke Git) dan toko demo sekaligus, lalu buka http://localhost:3000.
+
 **Kebutuhan:** Node.js (sudah terinstal), n8n berjalan dengan workflow 03 (lihat `docs/05`).
 
 1. **Siapkan n8n & workflow 03** sesuai `docs/05` (kredensial Google + URL sheet), lalu klik **Publish** di kanan atas workflow. Setelah di-Publish, alamat webhook-nya `http://localhost:5678/webhook/glowra-order-sheets` (tanpa `-test`) dan selalu siap menerima order.
