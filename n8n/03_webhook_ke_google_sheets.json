@@ -1,0 +1,379 @@
+{
+  "name": "Glowra 03 - Webhook Order ke Google Sheets",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 03 · Webhook → Google Sheets\n\n**Alur:** order masuk via **POST** → dicek field wajibnya → nomor HP & nama dirapikan → **ditulis ke tab `Order_Masuk` di Google Sheet** → dibalas JSON.\n\n**Anti dobel:** kalau `no_pesanan` sudah ada di sheet, barisnya **diperbarui**, bukan ditambah.\n\n**Balasan:**\n- ✅ Tersimpan → **200**\n- ❌ Data tidak lengkap → **400** (tidak ditulis ke sheet)\n- ⚠️ Gagal menulis ke Google → **500** (order jangan dianggap masuk)\n\n**Sebelum dipakai:** isi kredensial Google + URL sheet di node *Simpan ke Google Sheets*. Panduan: `docs/05-webhook-ke-google-sheets.md`.",
+        "height": 400,
+        "width": 620,
+        "color": 7
+      },
+      "id": "c3f0c003-0000-4000-8000-000000000001",
+      "name": "Catatan Workflow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "glowra-order-sheets",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c3f0c003-0000-4000-8000-000000000002",
+      "name": "Terima Order (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "8b7c3f10-2e4d-4a61-b0c9-3d5e7f902026"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validasi field wajib dari order yang masuk lewat webhook.\n// Hasil: { valid: true/false, errors: [...], order: {...data asli...} }\nconst WAJIB = ['channel', 'no_pesanan', 'sku', 'qty', 'nama_pembeli', 'no_hp'];\nconst CHANNEL_DIKENAL = ['shopee', 'tiktok', 'whatsapp'];\n\nreturn $input.all().map((item) => {\n  const body = item.json.body || {};\n  const kosong = (v) => v === undefined || v === null || String(v).trim() === '';\n  const errors = [];\n\n  for (const field of WAJIB) {\n    if (kosong(body[field])) errors.push(`Field '${field}' wajib diisi`);\n  }\n  if (!kosong(body.channel) && !CHANNEL_DIKENAL.includes(String(body.channel).trim().toLowerCase())) {\n    errors.push(`Field 'channel' harus salah satu dari: ${CHANNEL_DIKENAL.join(', ')}`);\n  }\n  if (!kosong(body.qty)) {\n    const qty = Number(body.qty);\n    if (!Number.isInteger(qty) || qty <= 0) errors.push(\"Field 'qty' harus angka bulat lebih dari 0\");\n  }\n  if (!kosong(body.sku) && !/^GLW-[A-Z]{3}-\\d{3}$/.test(String(body.sku).trim().toUpperCase())) {\n    errors.push(\"Field 'sku' harus berformat GLW-XXX-000 (contoh: GLW-SRM-001)\");\n  }\n  if (!kosong(body.no_hp)) {\n    const digit = String(body.no_hp).replace(/\\D/g, '');\n    if (digit.length < 9 || digit.length > 15) errors.push(\"Field 'no_hp' harus berisi 9-15 digit angka\");\n  }\n\n  return { json: { valid: errors.length === 0, errors, order: body } };\n});\n"
+      },
+      "id": "c3f0c003-0000-4000-8000-000000000003",
+      "name": "Validasi Field Wajib",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "d3000001-0000-4000-8000-000000000001",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c3f0c003-0000-4000-8000-000000000004",
+      "name": "Data Lengkap?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Rapikan data order: nomor HP -> 628xxx, SKU huruf besar, nama Huruf Awal Kapital.\n// Aturan sama dengan scripts/clean_merge.py supaya hasilnya konsisten.\nreturn $input.all().map((item) => {\n  const o = item.json.order;\n\n  let hp = String(o.no_hp).replace(/\\D/g, '');      // buang spasi, strip, +, ( )\n  if (hp.startsWith('0')) hp = '62' + hp.slice(1);  // 0812... -> 62812...\n  else if (hp.startsWith('8')) hp = '62' + hp;      // 812...  -> 62812...\n  const hpValid = hp.startsWith('628') && hp.length >= 11 && hp.length <= 14;\n\n  const nama = String(o.nama_pembeli)\n    .trim()\n    .replace(/\\s+/g, ' ')\n    .replace(/^(kak|ka|kk)\\s+/i, '')\n    .toLowerCase()\n    .replace(/(^|\\s)\\S/g, (c) => c.toUpperCase());\n\n  return {\n    json: {\n      status: hpValid ? 'diterima' : 'perlu_cek',\n      pesan: hpValid\n        ? 'Order diterima dan siap diproses'\n        : 'Order diterima, tapi nomor HP bukan nomor Indonesia (628...). Mohon cek manual.',\n      order: {\n        channel: String(o.channel).trim().toLowerCase(),\n        no_pesanan: String(o.no_pesanan).trim(),\n        sku: String(o.sku).trim().toUpperCase(),\n        qty: Number(o.qty),\n        nama_pembeli: nama,\n        no_hp_asli: o.no_hp,\n        no_hp_normal: hp,\n      },\n      // Waktu WIB yang enak dibaca di sheet, contoh: 2026-11-13 14:05:09\n      diterima_pada_wib: $now.setZone('Asia/Jakarta').toFormat('yyyy-MM-dd HH:mm:ss'),\n    },\n  };\n});\n"
+      },
+      "id": "c3f0c003-0000-4000-8000-000000000005",
+      "name": "Normalisasi No HP",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ...$('Normalisasi No HP').item.json, tersimpan_di_sheet: true } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "c3f0c003-0000-4000-8000-000000000006",
+      "name": "Balas 200 - Diterima",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1220,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: 'ditolak', pesan: 'Data order tidak lengkap atau tidak valid', errors: $json.errors } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "c3f0c003-0000-4000-8000-000000000007",
+      "name": "Balas 400 - Ditolak",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "TEMPEL_URL_GOOGLE_SHEET_DI_SINI",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Order_Masuk",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "diterima_pada_wib": "={{ $json.diterima_pada_wib }}",
+            "channel": "={{ $json.order.channel }}",
+            "no_pesanan": "={{ $json.order.no_pesanan }}",
+            "sku": "={{ $json.order.sku }}",
+            "qty": "={{ $json.order.qty }}",
+            "nama_pembeli": "={{ $json.order.nama_pembeli }}",
+            "no_hp_normal": "={{ $json.order.no_hp_normal }}",
+            "no_hp_asli": "={{ $json.order.no_hp_asli }}",
+            "status": "={{ $json.status }}",
+            "catatan": "={{ $json.pesan }}"
+          },
+          "matchingColumns": [
+            "no_pesanan"
+          ],
+          "schema": [
+            {
+              "id": "diterima_pada_wib",
+              "displayName": "diterima_pada_wib",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "channel",
+              "displayName": "channel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "no_pesanan",
+              "displayName": "no_pesanan",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "sku",
+              "displayName": "sku",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "qty",
+              "displayName": "qty",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "nama_pembeli",
+              "displayName": "nama_pembeli",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "no_hp_normal",
+              "displayName": "no_hp_normal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "no_hp_asli",
+              "displayName": "no_hp_asli",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "catatan",
+              "displayName": "catatan",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "c3f0c003-0000-4000-8000-000000000020",
+      "name": "Simpan ke Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        960,
+        -100
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: 'gagal_simpan', pesan: 'Order valid, tetapi gagal ditulis ke Google Sheets. Coba kirim ulang atau cek kredensial/URL sheet.', order: $('Normalisasi No HP').item.json.order, tersimpan_di_sheet: false } }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "c3f0c003-0000-4000-8000-000000000021",
+      "name": "Balas 500 - Gagal Simpan",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1220,
+        20
+      ]
+    }
+  ],
+  "connections": {
+    "Terima Order (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "Validasi Field Wajib",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validasi Field Wajib": {
+      "main": [
+        [
+          {
+            "node": "Data Lengkap?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Data Lengkap?": {
+      "main": [
+        [
+          {
+            "node": "Normalisasi No HP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Balas 400 - Ditolak",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalisasi No HP": {
+      "main": [
+        [
+          {
+            "node": "Simpan ke Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simpan ke Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Balas 200 - Diterima",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Balas 500 - Gagal Simpan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Jakarta"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

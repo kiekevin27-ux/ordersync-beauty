@@ -108,6 +108,8 @@ Cara gampang mengingat: **2xx = sukses**, **4xx = salah kita**, **5xx = salah se
 | `02_webhook_order_masuk.json` | Workflow **webhook POST**: terima order, validasi, rapikan no HP, balas JSON |
 | `contoh_order_valid.json` | Contoh order lengkap (untuk tes, hasilnya 200) |
 | `contoh_order_tidak_valid.json` | Contoh order rusak (untuk tes, hasilnya 400) |
+| `03_webhook_ke_google_sheets.json` | Seperti 02, plus **menulis order ke Google Sheets**. Panduan terpisah: [`05-webhook-ke-google-sheets.md`](05-webhook-ke-google-sheets.md) |
+| `contoh_order_tiktok.json` | Contoh order TikTok dengan nomor 18 digit (untuk tes workflow 03) |
 
 ### Langkah 1: Jalankan n8n (pilih salah satu)
 

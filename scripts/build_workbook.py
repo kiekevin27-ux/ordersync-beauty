@@ -8,6 +8,7 @@ Tab:
   Pesanan           data gabungan + kolom hitungan (Subtotal, HPP, Fee, Laba Kotor)
   Stok              stok awal, terjual, retur, stok akhir, status AMAN/RESTOCK
   Laba_per_Channel  ringkasan per channel + cek kecocokan omzet
+  Order_Masuk       tab kosong (header saja) tujuan tulis workflow n8n 03 (webhook -> Google Sheets)
 
 Di akhir, script menghitung ulang semua angka dengan Python biasa (tanpa rumus) supaya hasil
 rumus di spreadsheet bisa dicocokkan.
@@ -254,6 +255,24 @@ def tab_laba(wb):
 
 
 # ---------------------------------------------------------------------------
+# Nama kolom HARUS sama persis dengan yang dipetakan di node "Simpan ke Google Sheets" (workflow 03).
+KOLOM_ORDER_MASUK = ["diterima_pada_wib", "channel", "no_pesanan", "sku", "qty", "nama_pembeli",
+                     "no_hp_normal", "no_hp_asli", "status", "catatan"]
+
+
+def tab_order_masuk(wb):
+    """Tab kosong berisi header saja. Baris diisi otomatis oleh workflow n8n 03."""
+    ws = wb.create_sheet("Order_Masuk")
+    tulis_header(ws, 1, KOLOM_ORDER_MASUK)
+    # Format teks untuk kolom ID & nomor HP supaya tidak berubah jadi angka (6,28E+11).
+    for kol in ("C", "G", "H"):
+        for r in range(2, 1001):
+            ws[f"{kol}{r}"].number_format = "@"
+    ws.freeze_panes = "A2"
+    atur_lebar(ws, [19, 10, 21, 13, 6, 20, 15, 18, 11, 48])
+
+
+# ---------------------------------------------------------------------------
 def hitung_ulang_python(orders, produk, cfg):
     """Hitung angka yang SEHARUSNYA muncul di spreadsheet, tanpa rumus."""
     hpp = {p["sku"]: int(p["hpp"]) for p in produk}
@@ -287,6 +306,7 @@ def main():
     tab_pesanan(wb, orders)
     tab_stok(wb, len(produk))
     tab_laba(wb)
+    tab_order_masuk(wb)
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     wb.save(OUT_PATH)
     print(f"Workbook tersimpan: {OUT_PATH.relative_to(ROOT)}  ({len(orders)} pesanan, {len(produk)} produk)")

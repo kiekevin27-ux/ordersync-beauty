@@ -8,7 +8,9 @@ venv/
 ~$*
 .~lock.*
 
-# n8n lokal & rahasia
+# n8n lokal & rahasia (key JSON service account Google JANGAN masuk repo)
+kredensial/
+*service-account*.json
 .n8n/
 .env
 *.env
