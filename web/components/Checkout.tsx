@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useKeranjang } from "./KeranjangProvider";
 import PengaturQty from "./PengaturQty";
 import VisualProduk from "./VisualProduk";
-import BalikLayar from "./BalikLayar";
+import BalikLayar, { langkahCheckout } from "./BalikLayar";
 import { namaPendek, rupiah } from "@/lib/format";
 import type { HasilCheckout, PermintaanCheckout } from "@/lib/tipe";
 
@@ -190,7 +190,14 @@ export default function Checkout() {
               <p className="mt-3 rounded-xl bg-white/60 p-3 font-kode text-xs">Detail dari Google: {b.detail_error}</p>
             )}
           </div>
-          <BalikLayar hasil={hasil} />
+          <BalikLayar
+            langkah={langkahCheckout(hasil)}
+            http_status={hasil.http_status}
+            durasi_ms={hasil.durasi_ms}
+            dikirim={hasil.dikirim}
+            diterima={hasil.diterima}
+            webhook_url={hasil.webhook_url}
+          />
         </div>
       )}
     </div>

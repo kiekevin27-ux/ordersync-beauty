@@ -19,6 +19,9 @@ export default function Header() {
           <Link href="/#cara-kerja" className="hidden rounded-full px-3 py-2 text-sm text-tinta-lembut hover:text-anggur sm:block">
             Cara kerja
           </Link>
+          <Link href="/simulator" className="rounded-full px-3 py-2 text-sm font-medium text-anggur hover:bg-blush-muda">
+            Simulator
+          </Link>
           <button
             onClick={() => bukaLaci(true)}
             className="relative flex items-center gap-2 rounded-full bg-anggur px-4 py-2 text-sm font-semibold text-white hover:bg-anggur-tua"

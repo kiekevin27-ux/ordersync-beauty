@@ -1,0 +1,361 @@
+{
+  "name": "Glowra 04 - Notifikasi Marketplace (Shopee & TikTok)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 04 · Notifikasi Marketplace (Shopee & TikTok)\n\n**Pola API asli:** marketplace kirim notifikasi singkat → kita **ambil detail order** ke API → **terjemahkan** ke format Glowra → teruskan ke **gerbang (workflow 03)** → balas marketplace.\n\n**Status:** belum bayar = diabaikan · siap kirim = diproses · dikirim · selesai · batal. Notifikasi berikutnya untuk order yang sama **memperbarui** baris di sheet.\n\n**Demo:** API detail = API tiruan di toko demo (`/simulator`). Untuk API asli, ubah alamat di node *Kenali Notifikasi* + tambah token & signature.\n\nPanduan: `docs/07-simulator-marketplace.md`.",
+        "height": 380,
+        "width": 640,
+        "color": 7
+      },
+      "id": "c4f0c004-0000-4000-8000-000000000001",
+      "name": "Catatan Workflow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -460
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "glowra-marketplace",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c4f0c004-0000-4000-8000-000000000002",
+      "name": "Terima Notifikasi (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "4d2a9c71-1b8e-4f53-a6d0-5e9b7c402026"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== PENGATURAN =====================================================================\n// Demo: API tiruan di toko demo. API asli (perlu token & signature):\n//   Shopee : https://partner.shopeemobile.com/api/v2/order/get_order_detail\n//   TikTok : https://open-api.tiktokglobalshop.com/order/202309/orders\nconst PENGATURAN = {\n  api_detail_shopee: 'http://localhost:3000/api/mock/shopee/order-detail',\n  api_detail_tiktok: 'http://localhost:3000/api/mock/tiktok/orders',\n  gerbang_order: 'http://localhost:5678/webhook/glowra-order-sheets',   // workflow 03\n};\n// =====================================================================================\n\n// Status marketplace -> status pesanan Glowra. null = belum dicatat (belum dibayar / ditahan).\nconst STATUS_SHOPEE = {\n  UNPAID: null, READY_TO_SHIP: 'diproses', PROCESSED: 'diproses', RETRY_SHIP: 'diproses',\n  SHIPPED: 'dikirim', TO_CONFIRM_RECEIVE: 'dikirim', COMPLETED: 'selesai',\n  IN_CANCEL: 'batal', CANCELLED: 'batal', TO_RETURN: 'retur',\n};\nconst STATUS_TIKTOK = {\n  UNPAID: null, ON_HOLD: null, AWAITING_SHIPMENT: 'diproses', AWAITING_COLLECTION: 'diproses',\n  PARTIALLY_SHIPPING: 'diproses', IN_TRANSIT: 'dikirim', DELIVERED: 'dikirim', COMPLETED: 'selesai',\n  CANCELLED: 'batal',\n};\n\nconst b = $input.first().json.body || {};\nlet n = { dikenal: false, proses: false, platform: null, order_id: null, status_mentah: null,\n          status_pesanan: null, url_detail: null, gerbang_order: PENGATURAN.gerbang_order,\n          alasan: 'Format notifikasi tidak dikenali (bukan notifikasi order Shopee/TikTok)' };\n\nif (b.data && b.data.ordersn && b.shop_id !== undefined) {\n  // Shopee push \"order status update\": { code, shop_id, timestamp, data: { ordersn, status, update_time } }\n  n = { ...n, dikenal: true, platform: 'shopee', order_id: String(b.data.ordersn), status_mentah: String(b.data.status || ''),\n        url_detail: `${PENGATURAN.api_detail_shopee}?order_sn_list=${encodeURIComponent(b.data.ordersn)}` };\n  n.status_pesanan = STATUS_SHOPEE[n.status_mentah];\n} else if (b.data && b.data.order_id && b.type !== undefined) {\n  // TikTok Shop webhook \"order status change\": { type, shop_id, timestamp, data: { order_id, order_status, update_time } }\n  n = { ...n, dikenal: true, platform: 'tiktok', order_id: String(b.data.order_id), status_mentah: String(b.data.order_status || ''),\n        url_detail: `${PENGATURAN.api_detail_tiktok}?ids=${encodeURIComponent(b.data.order_id)}` };\n  n.status_pesanan = STATUS_TIKTOK[n.status_mentah];\n}\n\nif (n.dikenal) {\n  if (n.status_pesanan === undefined) {\n    n.status_pesanan = null;\n    n.alasan = `Status ${n.status_mentah} belum dipetakan, notifikasi diabaikan`;\n  } else if (n.status_pesanan === null) {\n    n.alasan = `Status ${n.status_mentah}: order belum dibayar/ditahan, belum dicatat`;\n  } else {\n    n.proses = true;\n    n.alasan = null;\n  }\n}\nreturn [{ json: n }];"
+      },
+      "id": "c4f0c004-0000-4000-8000-000000000003",
+      "name": "Kenali Notifikasi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "d4000004-0000-4000-8000-000000000001",
+              "leftValue": "={{ $json.proses }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c4f0c004-0000-4000-8000-000000000004",
+      "name": "Perlu Dicatat?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url_detail }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 20000
+        }
+      },
+      "id": "c4f0c004-0000-4000-8000-000000000005",
+      "name": "Ambil Detail Order (API Marketplace)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        -100
+      ],
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Terjemahkan detail order dari API marketplace -> format standar Glowra (workflow 03).\nconst n = $('Kenali Notifikasi').first().json;\nconst res = $input.first().json;   // HTTP Request dengan \"full response\": { body, statusCode, headers }\nconst gagal = (alasan) => [{ json: { ok: false, alasan, platform: n.platform, order_id: n.order_id } }];\n\nif (res.error || res.statusCode !== 200) {\n  return gagal(`Gagal mengambil detail order dari API ${n.platform} (HTTP ${res.statusCode ?? 'tanpa balasan'})`);\n}\nconst body = typeof res.body === 'string' ? JSON.parse(res.body) : res.body;\nconst wib = (detik) => DateTime.fromSeconds(Number(detik), { zone: 'Asia/Jakarta' }).toFormat('yyyy-MM-dd HH:mm');\n\n// Gabungkan produk yang SKU-nya sama (TikTok: 1 line item = 1 unit barang).\nfunction gabung(baris) {\n  const peta = new Map();\n  for (const x of baris) {\n    const ada = peta.get(x.sku);\n    if (ada) ada.qty += x.qty;\n    else peta.set(x.sku, { ...x });\n  }\n  return [...peta.values()];\n}\n\nlet order;\nif (n.platform === 'shopee') {\n  const o = body?.response?.order_list?.[0];\n  if (!o) return gagal(`Order ${n.order_id} tidak ditemukan di API Shopee`);\n  order = {\n    channel: 'shopee',\n    no_pesanan: o.order_sn,\n    nama_pembeli: o.recipient_address?.name || o.buyer_username || '',\n    no_hp: o.recipient_address?.phone || '',\n    status_pesanan: n.status_pesanan,\n    tanggal_pesanan: wib(o.create_time),\n    items: gabung((o.item_list || []).map((it) => ({\n      sku: it.model_sku || it.item_sku,\n      qty: Number(it.model_quantity_purchased),\n      harga_satuan: Math.round(Number(it.model_discounted_price)),\n    }))),\n  };\n} else {\n  const o = body?.data?.orders?.[0];\n  if (!o) return gagal(`Order ${n.order_id} tidak ditemukan di API TikTok`);\n  order = {\n    channel: 'tiktok',\n    no_pesanan: o.id,\n    nama_pembeli: o.recipient_address?.name || '',\n    no_hp: o.recipient_address?.phone_number || '',\n    status_pesanan: n.status_pesanan,\n    tanggal_pesanan: wib(o.create_time),\n    items: gabung((o.line_items || []).map((li) => ({\n      sku: li.seller_sku,\n      qty: 1,\n      harga_satuan: Math.round(Number(li.sale_price)),\n    }))),\n  };\n}\nreturn [{ json: { ok: true, order } }];"
+      },
+      "id": "c4f0c004-0000-4000-8000-000000000006",
+      "name": "Terjemahkan ke Format Glowra",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "d4000004-0000-4000-8000-000000000002",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c4f0c004-0000-4000-8000-000000000007",
+      "name": "Detail Didapat?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Kenali Notifikasi').first().json.gerbang_order }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.order) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 20000
+        }
+      },
+      "id": "c4f0c004-0000-4000-8000-000000000008",
+      "name": "Kirim ke Gerbang Order (workflow 03)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        -200
+      ],
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Siapkan balasan untuk marketplace berdasarkan hasil gerbang (workflow 03).\nconst n = $('Kenali Notifikasi').first().json;\nconst t = $('Terjemahkan ke Format Glowra').first().json;\nconst g = $input.first().json;   // { statusCode, body } dari gerbang\nconst kode = g.statusCode;\n\nlet status = 'tercatat';\nlet balas = 200;\nif (kode === 400) status = 'ditolak_gerbang';           // data rusak: kirim ulang tidak akan membantu -> tetap 200\nelse if (kode !== 200) { status = 'gagal_simpan'; balas = 500; }   // minta marketplace mengulang\n\nreturn [{ json: { kode_balas: balas, balasan: {\n  status,\n  platform: n.platform,\n  order_id: n.order_id,\n  status_marketplace: n.status_mentah,\n  status_pesanan: n.status_pesanan,\n  order_diterjemahkan: t.order,\n  gerbang: { http_status: kode ?? null, balasan: g.body ?? null },\n} } }];"
+      },
+      "id": "c4f0c004-0000-4000-8000-000000000009",
+      "name": "Siapkan Balasan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.balasan }}",
+        "options": {
+          "responseCode": "={{ $json.kode_balas }}"
+        }
+      },
+      "id": "c4f0c004-0000-4000-8000-000000000010",
+      "name": "Balas ke Marketplace",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1920,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: 'gagal_ambil_detail', platform: $json.platform, order_id: $json.order_id, alasan: $json.alasan } }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "c4f0c004-0000-4000-8000-000000000011",
+      "name": "Balas 500 - Gagal Ambil Detail",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1440,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: $json.dikenal ? 'diabaikan' : 'tidak_dikenal', platform: $json.platform, order_id: $json.order_id, status_marketplace: $json.status_mentah, alasan: $json.alasan } }}",
+        "options": {
+          "responseCode": "={{ $json.dikenal ? 200 : 400 }}"
+        }
+      },
+      "id": "c4f0c004-0000-4000-8000-000000000012",
+      "name": "Balas - Diabaikan",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        160
+      ]
+    }
+  ],
+  "connections": {
+    "Terima Notifikasi (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "Kenali Notifikasi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kenali Notifikasi": {
+      "main": [
+        [
+          {
+            "node": "Perlu Dicatat?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Perlu Dicatat?": {
+      "main": [
+        [
+          {
+            "node": "Ambil Detail Order (API Marketplace)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Balas - Diabaikan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ambil Detail Order (API Marketplace)": {
+      "main": [
+        [
+          {
+            "node": "Terjemahkan ke Format Glowra",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Terjemahkan ke Format Glowra": {
+      "main": [
+        [
+          {
+            "node": "Detail Didapat?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detail Didapat?": {
+      "main": [
+        [
+          {
+            "node": "Kirim ke Gerbang Order (workflow 03)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Balas 500 - Gagal Ambil Detail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kirim ke Gerbang Order (workflow 03)": {
+      "main": [
+        [
+          {
+            "node": "Siapkan Balasan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Siapkan Balasan": {
+      "main": [
+        [
+          {
+            "node": "Balas ke Marketplace",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Jakarta"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

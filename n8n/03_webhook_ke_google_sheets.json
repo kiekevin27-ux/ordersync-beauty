@@ -3,9 +3,9 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## 03 · Webhook → Google Sheets\n\n**Alur:** order masuk via **POST** → dicek → dirapikan & **dipecah per produk** → **ditulis ke tab `Order_Masuk`** → dirangkum → dibalas JSON.\n\n**Keranjang:** 1 order boleh berisi banyak produk (`items`). Tiap produk = 1 baris.\n\n**Anti dobel:** kunci `id_baris` = `no_pesanan|sku`. Kirim ulang order yang sama → baris lama **diperbarui**, tidak ditambah.\n\n**Balasan:** ✅ 200 tersimpan · ❌ 400 data salah (tidak ditulis) · ⚠️ 500 gagal tulis ke Google\n\n**Sebelum dipakai:** isi kredensial Google + URL sheet di node *Simpan ke Google Sheets*. Panduan: `docs/05-webhook-ke-google-sheets.md`.",
-        "height": 420,
-        "width": 640,
+        "content": "## 03 · Gerbang Order → Google Sheets\n\n**Semua channel masuk lewat sini:** toko demo, WA, simulator/API marketplace (wf 04), import file export (wf 05).\n\n**Alur:** POST → validasi → rapikan & **pecah per produk** → **tulis ke tab `Order_Masuk`** → rangkum → balas JSON.\n\n**Anti dobel:** kunci `id_baris` = `no_pesanan|sku`. Order yang datang lagi (mis. status berubah) **memperbarui** baris yang sama.\n\n**Banyak order sekaligus:** kirim `{ \"orders\": [...] }`, semua ditulis dalam 1 panggilan ke Google.\n\n**Balasan:** ✅ 200 tersimpan · ❌ 400 data salah (tidak ditulis) · ⚠️ 500 gagal tulis ke Google\n\n**Sebelum dipakai:** isi kredensial Google + URL sheet di node *Simpan ke Google Sheets*. Panduan: `docs/05-webhook-ke-google-sheets.md`.",
+        "height": 480,
+        "width": 660,
         "color": 7
       },
       "id": "c3f0c003-0000-4000-8000-000000000001",
@@ -14,7 +14,7 @@
       "typeVersion": 1,
       "position": [
         -60,
-        -480
+        -540
       ]
     },
     {
@@ -36,7 +36,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Validasi order yang masuk lewat webhook.\n// Format baru (keranjang): { channel, no_pesanan, nama_pembeli, no_hp, items: [{ sku, qty, harga_satuan? }] }\n// Format lama (1 produk) tetap diterima: { channel, no_pesanan, nama_pembeli, no_hp, sku, qty }\n// Hasil: { valid: true/false, errors: [...], order: {...data asli + items...} }\nconst WAJIB = ['channel', 'no_pesanan', 'nama_pembeli', 'no_hp'];\nconst CHANNEL_DIKENAL = ['shopee', 'tiktok', 'whatsapp', 'website'];\nconst POLA_SKU = /^GLW-[A-Z]{3}-\\d{3}$/;\nconst MAKS_PRODUK = 30;\n\nreturn $input.all().map((item) => {\n  const body = item.json.body || {};\n  const kosong = (v) => v === undefined || v === null || String(v).trim() === '';\n  const errors = [];\n\n  for (const field of WAJIB) {\n    if (kosong(body[field])) errors.push(`Field '${field}' wajib diisi`);\n  }\n  if (!kosong(body.channel) && !CHANNEL_DIKENAL.includes(String(body.channel).trim().toLowerCase())) {\n    errors.push(`Field 'channel' harus salah satu dari: ${CHANNEL_DIKENAL.join(', ')}`);\n  }\n  if (!kosong(body.no_hp)) {\n    const digit = String(body.no_hp).replace(/\\D/g, '');\n    if (digit.length < 9 || digit.length > 15) errors.push(\"Field 'no_hp' harus berisi 9-15 digit angka\");\n  }\n\n  // Ambil daftar produk: format baru (items) atau format lama (sku + qty).\n  let items = [];\n  if (Array.isArray(body.items)) items = body.items;\n  else if (!kosong(body.sku) || !kosong(body.qty)) items = [{ sku: body.sku, qty: body.qty }];\n\n  if (items.length === 0) errors.push(\"Order harus berisi minimal 1 produk (field 'items', atau 'sku' + 'qty')\");\n  if (items.length > MAKS_PRODUK) errors.push(`Maksimal ${MAKS_PRODUK} produk per order`);\n\n  const skuTerlihat = new Set();\n  items.forEach((it, i) => {\n    const label = items.length > 1 ? `Produk #${i + 1}: ` : '';\n    it = it || {};\n    if (kosong(it.sku)) {\n      errors.push(`${label}Field 'sku' wajib diisi`);\n    } else {\n      const sku = String(it.sku).trim().toUpperCase();\n      if (!POLA_SKU.test(sku)) errors.push(`${label}Field 'sku' harus berformat GLW-XXX-000 (contoh: GLW-SRM-001)`);\n      if (skuTerlihat.has(sku)) errors.push(`${label}SKU ${sku} muncul dua kali, gabungkan qty-nya`);\n      skuTerlihat.add(sku);\n    }\n    if (kosong(it.qty)) {\n      errors.push(`${label}Field 'qty' wajib diisi`);\n    } else {\n      const qty = Number(it.qty);\n      if (!Number.isInteger(qty) || qty <= 0) errors.push(`${label}Field 'qty' harus angka bulat lebih dari 0`);\n    }\n    if (!kosong(it.harga_satuan)) {\n      const h = Number(it.harga_satuan);\n      if (!Number.isInteger(h) || h < 0) errors.push(`${label}Field 'harga_satuan' harus angka bulat (rupiah)`);\n    }\n  });\n\n  return { json: { valid: errors.length === 0, errors, order: { ...body, items } } };\n});"
+        "jsCode": "// Validasi order yang masuk lewat webhook.\n// 1 order  : { channel, no_pesanan, nama_pembeli, no_hp, items: [{ sku, qty, harga_satuan? }],\n//              status_pesanan?, tanggal_pesanan? }\n// Banyak   : { orders: [ {...order...}, {...order...} ] }   (untuk import file export)\n// Format lama 1 produk tetap diterima: { ..., sku, qty } tanpa items.\n// Hasil: 1 item per order VALID ({ valid: true, order, batch, ditolak }),\n//        atau 1 item { valid: false, errors, ditolak } kalau tidak ada satu pun yang valid.\nconst WAJIB = ['channel', 'no_pesanan', 'nama_pembeli'];\nconst CHANNEL_DIKENAL = ['shopee', 'tiktok', 'whatsapp', 'website'];\nconst CHANNEL_MARKETPLACE = ['shopee', 'tiktok'];   // API marketplace sering menyamarkan no HP\nconst STATUS_PESANAN = ['baru', 'diproses', 'dikirim', 'selesai', 'batal', 'retur'];\nconst POLA_SKU = /^GLW-[A-Z]{3}-\\d{3}$/;\nconst POLA_TANGGAL = /^\\d{4}-\\d{2}-\\d{2}( \\d{2}:\\d{2}(:\\d{2})?)?$/;\nconst MAKS_PRODUK = 30;\nconst MAKS_ORDER = 2000;\nconst kosong = (v) => v === undefined || v === null || String(v).trim() === '';\n\nfunction cekOrder(body) {\n  const errors = [];\n  for (const field of WAJIB) {\n    if (kosong(body[field])) errors.push(`Field '${field}' wajib diisi`);\n  }\n  const channel = kosong(body.channel) ? '' : String(body.channel).trim().toLowerCase();\n  if (channel && !CHANNEL_DIKENAL.includes(channel)) {\n    errors.push(`Field 'channel' harus salah satu dari: ${CHANNEL_DIKENAL.join(', ')}`);\n  }\n  const marketplace = CHANNEL_MARKETPLACE.includes(channel);\n\n  // No HP: wajib untuk website/WA. Untuk Shopee/TikTok boleh kosong atau disamarkan (ada '*').\n  if (kosong(body.no_hp)) {\n    if (!marketplace) errors.push(\"Field 'no_hp' wajib diisi\");\n  } else if (String(body.no_hp).includes('*')) {\n    if (!marketplace) errors.push(\"Field 'no_hp' tidak boleh disamarkan untuk channel ini\");\n  } else {\n    const digit = String(body.no_hp).replace(/\\D/g, '');\n    if (digit.length < 9 || digit.length > 15) errors.push(\"Field 'no_hp' harus berisi 9-15 digit angka\");\n  }\n\n  if (!kosong(body.status_pesanan) && !STATUS_PESANAN.includes(String(body.status_pesanan).trim().toLowerCase())) {\n    errors.push(`Field 'status_pesanan' harus salah satu dari: ${STATUS_PESANAN.join(', ')}`);\n  }\n  if (!kosong(body.tanggal_pesanan) && !POLA_TANGGAL.test(String(body.tanggal_pesanan).trim())) {\n    errors.push(\"Field 'tanggal_pesanan' harus berformat YYYY-MM-DD atau YYYY-MM-DD HH:mm\");\n  }\n\n  // Ambil daftar produk: format baru (items) atau format lama (sku + qty).\n  let items = [];\n  if (Array.isArray(body.items)) items = body.items;\n  else if (!kosong(body.sku) || !kosong(body.qty)) items = [{ sku: body.sku, qty: body.qty }];\n\n  if (items.length === 0) errors.push(\"Order harus berisi minimal 1 produk (field 'items', atau 'sku' + 'qty')\");\n  if (items.length > MAKS_PRODUK) errors.push(`Maksimal ${MAKS_PRODUK} produk per order`);\n\n  const skuTerlihat = new Set();\n  items.forEach((it, i) => {\n    const label = items.length > 1 ? `Produk #${i + 1}: ` : '';\n    it = it || {};\n    if (kosong(it.sku)) {\n      errors.push(`${label}Field 'sku' wajib diisi`);\n    } else {\n      const sku = String(it.sku).trim().toUpperCase();\n      if (!POLA_SKU.test(sku)) errors.push(`${label}Field 'sku' harus berformat GLW-XXX-000 (contoh: GLW-SRM-001)`);\n      if (skuTerlihat.has(sku)) errors.push(`${label}SKU ${sku} muncul dua kali, gabungkan qty-nya`);\n      skuTerlihat.add(sku);\n    }\n    if (kosong(it.qty)) {\n      errors.push(`${label}Field 'qty' wajib diisi`);\n    } else {\n      const qty = Number(it.qty);\n      if (!Number.isInteger(qty) || qty <= 0) errors.push(`${label}Field 'qty' harus angka bulat lebih dari 0`);\n    }\n    if (!kosong(it.harga_satuan)) {\n      const h = Number(it.harga_satuan);\n      if (!Number.isInteger(h) || h < 0) errors.push(`${label}Field 'harga_satuan' harus angka bulat (rupiah)`);\n    }\n  });\n\n  return { errors, order: { ...body, items } };\n}\n\nconst body = $input.first().json.body || {};\nconst batch = Array.isArray(body.orders);\nconst daftar = batch ? body.orders : [body];\n\nif (batch && (daftar.length === 0 || daftar.length > MAKS_ORDER)) {\n  const pesan = daftar.length === 0 ? \"Field 'orders' tidak boleh kosong\" : `Maksimal ${MAKS_ORDER} order per kiriman`;\n  return [{ json: { valid: false, batch, errors: [pesan], ditolak: [] } }];\n}\n\nconst valid = [];\nconst ditolak = [];\nconst noTerlihat = new Set();\ndaftar.forEach((o, i) => {\n  const { errors, order } = cekOrder(o || {});\n  const no = kosong(o && o.no_pesanan) ? null : String(o.no_pesanan).trim();\n  if (no && noTerlihat.has(no)) errors.push(`no_pesanan ${no} muncul dua kali dalam kiriman ini, gabungkan produknya`);\n  if (no) noTerlihat.add(no);\n  if (errors.length) ditolak.push({ urutan: i + 1, no_pesanan: no, errors });\n  else valid.push(order);\n});\n\nif (valid.length === 0) {\n  const errors = batch\n    ? ditolak.slice(0, 20).flatMap((d) => d.errors.map((e) => `Order #${d.urutan}${d.no_pesanan ? ` (${d.no_pesanan})` : ''}: ${e}`))\n    : ditolak[0].errors;\n  return [{ json: { valid: false, batch, errors, ditolak: ditolak.slice(0, 100) } }];\n}\nreturn valid.map((order) => ({ json: { valid: true, batch, order, ditolak: ditolak.slice(0, 100) } }));"
       },
       "id": "c3f0c003-0000-4000-8000-000000000003",
       "name": "Validasi Order",
@@ -82,7 +82,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Rapikan data order, lalu PECAH jadi 1 item per produk (1 item = 1 baris di sheet).\n// Aturan no HP & nama sama dengan scripts/clean_merge.py supaya hasilnya konsisten.\nconst hasil = [];\nconst kosong = (v) => v === undefined || v === null || String(v).trim() === '';\nconst waktuWib = $now.setZone('Asia/Jakarta').toFormat('yyyy-MM-dd HH:mm:ss');\n\nfor (const item of $input.all()) {\n  const o = item.json.order;\n\n  let hp = String(o.no_hp).replace(/\\D/g, '');      // buang spasi, strip, +, ( )\n  if (hp.startsWith('0')) hp = '62' + hp.slice(1);  // 0812... -> 62812...\n  else if (hp.startsWith('8')) hp = '62' + hp;      // 812...  -> 62812...\n  const hpValid = hp.startsWith('628') && hp.length >= 11 && hp.length <= 14;\n\n  const nama = String(o.nama_pembeli)\n    .trim()\n    .replace(/\\s+/g, ' ')\n    .replace(/^(kak|ka|kk)\\s+/i, '')\n    .toLowerCase()\n    .replace(/(^|\\s)\\S/g, (c) => c.toUpperCase());\n\n  const noPesanan = String(o.no_pesanan).trim();\n\n  for (const it of o.items) {\n    const sku = String(it.sku).trim().toUpperCase();\n    const qty = Number(it.qty);\n    const harga = kosong(it.harga_satuan) ? '' : Number(it.harga_satuan);\n    hasil.push({\n      json: {\n        diterima_pada_wib: waktuWib,                 // contoh: 2026-11-13 14:05:09\n        id_baris: `${noPesanan}|${sku}`,             // kunci anti dobel di sheet\n        channel: String(o.channel).trim().toLowerCase(),\n        no_pesanan: noPesanan,\n        sku,\n        qty,\n        harga_satuan: harga,\n        subtotal: harga === '' ? '' : harga * qty,\n        nama_pembeli: nama,\n        no_hp_normal: hp,\n        no_hp_asli: String(o.no_hp),\n        status: hpValid ? 'diterima' : 'perlu_cek',\n        catatan: hpValid ? 'Order diterima dan siap diproses'\n                         : 'Nomor HP bukan nomor Indonesia (628...). Mohon cek manual.',\n      },\n    });\n  }\n}\nreturn hasil;"
+        "jsCode": "// Rapikan data order, lalu PECAH jadi 1 item per produk (1 item = 1 baris di sheet).\n// Aturan no HP & nama sama dengan scripts/clean_merge.py supaya hasilnya konsisten.\n// PENTING: field yang dikeluarkan node ini = kolom sheet (mode auto-map).\nconst hasil = [];\nconst kosong = (v) => v === undefined || v === null || String(v).trim() === '';\nconst waktuWib = $now.setZone('Asia/Jakarta').toFormat('yyyy-MM-dd HH:mm:ss');\n\nfor (const item of $input.all()) {\n  const o = item.json.order;\n\n  // --- No HP ---\n  const hpAsli = kosong(o.no_hp) ? '' : String(o.no_hp);\n  const disamarkan = hpAsli === '' || hpAsli.includes('*');   // hanya lolos validasi untuk Shopee/TikTok\n  let hp = '';\n  let hpValid = false;\n  if (!disamarkan) {\n    hp = hpAsli.replace(/\\D/g, '');                    // buang spasi, strip, +, ( )\n    if (hp.startsWith('0')) hp = '62' + hp.slice(1);   // 0812... -> 62812...\n    else if (hp.startsWith('8')) hp = '62' + hp;       // 812...  -> 62812...\n    hpValid = hp.startsWith('628') && hp.length >= 11 && hp.length <= 14;\n  }\n\n  let status = 'diterima';\n  let catatan = 'Order diterima dan siap diproses';\n  if (disamarkan) {\n    catatan = 'No HP tidak tersedia/disamarkan oleh marketplace (normal untuk data API)';\n  } else if (!hpValid) {\n    status = 'perlu_cek';\n    catatan = 'Nomor HP bukan nomor Indonesia (628...). Mohon cek manual.';\n  }\n\n  // --- Nama ---\n  const nama = String(o.nama_pembeli)\n    .trim()\n    .replace(/\\s+/g, ' ')\n    .replace(/^(kak|ka|kk)\\s+/i, '')\n    .toLowerCase()\n    .replace(/(^|\\s)\\S/g, (c) => c.toUpperCase());\n\n  const noPesanan = String(o.no_pesanan).trim();\n  const statusPesanan = kosong(o.status_pesanan) ? 'baru' : String(o.status_pesanan).trim().toLowerCase();\n  const tanggalPesanan = kosong(o.tanggal_pesanan) ? waktuWib.slice(0, 16) : String(o.tanggal_pesanan).trim();\n\n  for (const it of o.items) {\n    const sku = String(it.sku).trim().toUpperCase();\n    const qty = Number(it.qty);\n    const harga = kosong(it.harga_satuan) ? '' : Number(it.harga_satuan);\n    hasil.push({\n      json: {\n        diterima_pada_wib: waktuWib,                 // contoh: 2026-11-13 14:05:09\n        id_baris: `${noPesanan}|${sku}`,             // kunci anti dobel di sheet\n        channel: String(o.channel).trim().toLowerCase(),\n        no_pesanan: noPesanan,\n        sku,\n        qty,\n        harga_satuan: harga,\n        subtotal: harga === '' ? '' : harga * qty,\n        nama_pembeli: nama,\n        no_hp_normal: hp,\n        no_hp_asli: hpAsli,\n        status,                                      // status DATA: diterima / perlu_cek\n        catatan,\n        status_pesanan: statusPesanan,               // status ORDER: baru / diproses / dikirim / selesai / batal / retur\n        tanggal_pesanan: tanggalPesanan,\n      },\n    });\n  }\n}\nreturn hasil;"
       },
       "id": "c3f0c003-0000-4000-8000-000000000005",
       "name": "Normalisasi Data",
@@ -108,162 +108,18 @@
           "mode": "name"
         },
         "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "diterima_pada_wib": "={{ $json.diterima_pada_wib }}",
-            "id_baris": "={{ $json.id_baris }}",
-            "channel": "={{ $json.channel }}",
-            "no_pesanan": "={{ $json.no_pesanan }}",
-            "sku": "={{ $json.sku }}",
-            "qty": "={{ $json.qty }}",
-            "harga_satuan": "={{ $json.harga_satuan }}",
-            "subtotal": "={{ $json.subtotal }}",
-            "nama_pembeli": "={{ $json.nama_pembeli }}",
-            "no_hp_normal": "={{ $json.no_hp_normal }}",
-            "no_hp_asli": "={{ $json.no_hp_asli }}",
-            "status": "={{ $json.status }}",
-            "catatan": "={{ $json.catatan }}"
-          },
+          "mappingMode": "autoMapInputData",
+          "value": {},
           "matchingColumns": [
             "id_baris"
           ],
-          "schema": [
-            {
-              "id": "diterima_pada_wib",
-              "displayName": "diterima_pada_wib",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "id_baris",
-              "displayName": "id_baris",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "channel",
-              "displayName": "channel",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "no_pesanan",
-              "displayName": "no_pesanan",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "sku",
-              "displayName": "sku",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "qty",
-              "displayName": "qty",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "number",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "harga_satuan",
-              "displayName": "harga_satuan",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "number",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "subtotal",
-              "displayName": "subtotal",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "number",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "nama_pembeli",
-              "displayName": "nama_pembeli",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "no_hp_normal",
-              "displayName": "no_hp_normal",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "no_hp_asli",
-              "displayName": "no_hp_asli",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "status",
-              "displayName": "status",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "catatan",
-              "displayName": "catatan",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            }
-          ],
+          "schema": [],
           "attemptToConvertTypes": false,
           "convertFieldsToString": false
         },
         "options": {
-          "cellFormat": "RAW"
+          "cellFormat": "RAW",
+          "handlingExtraData": "insertInNewColumn"
         }
       },
       "id": "c3f0c003-0000-4000-8000-000000000006",
@@ -279,7 +135,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Rangkum hasil penulisan ke Google Sheets jadi 1 balasan untuk pengirim.\n// Node Google Sheets diset \"continue on error\": kalau gagal, item berisi field `error`.\nconst gagal = $input.all().filter((i) => i.json.error);\nconst baris = $('Normalisasi Data').all().map((i) => i.json);\nconst r = baris[0];\nconst semuaBerharga = baris.every((b) => b.subtotal !== '');\nconst perluCek = baris.some((b) => b.status === 'perlu_cek');\nconst tersimpan = gagal.length === 0;\n\nlet status = 'diterima';\nlet pesan = 'Order diterima dan sudah tercatat di Google Sheets';\nif (!tersimpan) {\n  status = 'gagal_simpan';\n  pesan = 'Order valid, tetapi gagal ditulis ke Google Sheets. Coba kirim ulang atau cek kredensial/URL sheet.';\n} else if (perluCek) {\n  status = 'perlu_cek';\n  pesan = 'Order tercatat, tetapi nomor HP bukan nomor Indonesia (628...). Admin perlu cek manual.';\n}\n\nlet detail = null;\nif (!tersimpan) {\n  const e = gagal[0].json.error;\n  detail = typeof e === 'string' ? e : (e && (e.message || e.description)) || JSON.stringify(e);\n}\n\nreturn [{\n  json: {\n    tersimpan,\n    balasan: {\n      status,\n      pesan,\n      no_pesanan: r.no_pesanan,\n      channel: r.channel,\n      nama_pembeli: r.nama_pembeli,\n      no_hp_normal: r.no_hp_normal,\n      jumlah_produk: baris.length,\n      total_qty: baris.reduce((s, b) => s + b.qty, 0),\n      total: semuaBerharga ? baris.reduce((s, b) => s + b.subtotal, 0) : null,\n      items: baris.map((b) => ({ sku: b.sku, qty: b.qty, harga_satuan: b.harga_satuan, subtotal: b.subtotal })),\n      diterima_pada_wib: r.diterima_pada_wib,\n      tersimpan_di_sheet: tersimpan,\n      detail_error: detail,\n    },\n  },\n}];"
+        "jsCode": "// Rangkum hasil penulisan ke Google Sheets jadi 1 balasan untuk pengirim.\n// Node Google Sheets diset \"continue on error\": kalau gagal, item berisi field `error`.\nconst gagal = $input.all().filter((i) => i.json.error);\nconst baris = $('Normalisasi Data').all().map((i) => i.json);\nconst v = $('Validasi Order').first().json;\nconst ditolak = v.ditolak || [];\nconst tersimpan = gagal.length === 0;\nconst angka = (x) => (typeof x === 'number' ? x : 0);\n\nlet detail = null;\nif (!tersimpan) {\n  const e = gagal[0].json.error;\n  detail = typeof e === 'string' ? e : (e && (e.message || e.description)) || JSON.stringify(e);\n}\nconst PESAN_GAGAL = 'Order valid, tetapi gagal ditulis ke Google Sheets. Coba kirim ulang atau cek kredensial/URL sheet.';\n\nif (v.batch) {\n  // ---- Banyak order sekaligus (import file export) ----\n  const jumlahOrder = new Set(baris.map((b) => b.no_pesanan)).size;\n  let status = 'diterima';\n  let pesan = `${jumlahOrder} order (${baris.length} baris) tercatat di Google Sheets`;\n  if (!tersimpan) { status = 'gagal_simpan'; pesan = PESAN_GAGAL; }\n  else if (ditolak.length) { status = 'diterima_sebagian'; pesan += `, ${ditolak.length} order ditolak`; }\n  return [{ json: { tersimpan, balasan: {\n    status, pesan, mode: 'batch',\n    jumlah_order: jumlahOrder,\n    jumlah_baris: baris.length,\n    jumlah_ditolak: ditolak.length,\n    ditolak,\n    total: baris.reduce((s, b) => s + angka(b.subtotal), 0),\n    diterima_pada_wib: baris[0].diterima_pada_wib,\n    tersimpan_di_sheet: tersimpan,\n    detail_error: detail,\n  } } }];\n}\n\n// ---- 1 order ----\nconst r = baris[0];\nconst semuaBerharga = baris.every((b) => b.subtotal !== '');\nconst perluCek = baris.some((b) => b.status === 'perlu_cek');\nlet status = 'diterima';\nlet pesan = 'Order diterima dan sudah tercatat di Google Sheets';\nif (!tersimpan) {\n  status = 'gagal_simpan';\n  pesan = PESAN_GAGAL;\n} else if (perluCek) {\n  status = 'perlu_cek';\n  pesan = 'Order tercatat, tetapi nomor HP bukan nomor Indonesia (628...). Admin perlu cek manual.';\n}\n\nreturn [{ json: { tersimpan, balasan: {\n  status,\n  pesan,\n  no_pesanan: r.no_pesanan,\n  channel: r.channel,\n  nama_pembeli: r.nama_pembeli,\n  no_hp_normal: r.no_hp_normal,\n  status_pesanan: r.status_pesanan,\n  tanggal_pesanan: r.tanggal_pesanan,\n  jumlah_produk: baris.length,\n  total_qty: baris.reduce((s, b) => s + b.qty, 0),\n  total: semuaBerharga ? baris.reduce((s, b) => s + b.subtotal, 0) : null,\n  items: baris.map((b) => ({ sku: b.sku, qty: b.qty, harga_satuan: b.harga_satuan, subtotal: b.subtotal })),\n  diterima_pada_wib: r.diterima_pada_wib,\n  tersimpan_di_sheet: tersimpan,\n  detail_error: detail,\n} } }];"
       },
       "id": "c3f0c003-0000-4000-8000-000000000007",
       "name": "Rangkum Hasil",
@@ -360,7 +216,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { status: 'ditolak', pesan: 'Data order tidak lengkap atau tidak valid', errors: $json.errors } }}",
+        "responseBody": "={{ { status: 'ditolak', pesan: 'Data order tidak lengkap atau tidak valid', errors: $json.errors, ditolak: $json.ditolak } }}",
         "options": {
           "responseCode": 400
         }
