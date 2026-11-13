@@ -73,6 +73,15 @@ Total produk perlu perhatian: 4 dari 15
 3. Buka **/dashboard**: produk itu pindah ke atas tabel Stok dengan lencana **! RESTOCK**.
 4. Di Google Sheet, ubah `status_pesanan` order itu jadi `batal` (atau kirim ulang dengan status batal). Dalam ≤ 5 menit masuk pesan **Sudah aman lagi ✅**.
 
+## Kalau ada masalah
+
+| Gejala | Penyebab | Solusi |
+|---|---|---|
+| Bot tidak membalas saat dikirimi "halo" | **Normal**: bot ini hanya mengirim notifikasi, tidak membalas chat | Tidak perlu apa-apa |
+| Chat ID tidak ditemukan | Pesan terkirim ke bot lain (misalnya ke BotFather) | Buka `t.me/<username_bot>` lalu kirim pesan lagi; cocokkan username bot dengan token |
+| *The connection to the server was closed unexpectedly* / *connect timeout* | Jaringan rumah tidak mendukung **IPv6** ke Telegram, sementara Node.js mencoba IPv6 dulu | Jalankan n8n dengan `NODE_OPTIONS=--dns-result-order=ipv4first` (sudah otomatis di `jalankan-demo.ps1`). Node Telegram juga mencoba ulang 3× |
+| Notifikasi tidak muncul padahal stok turun | Status produk tidak **berubah** (sudah RESTOCK sejak laporan sebelumnya) | Normal (anti spam). Pakai tombol *Kirim ringkasan stok* di dashboard untuk laporan lengkap |
+
 ## Batasan
 
 - Stok awal diambil dari `Master_Produk`. Barang masuk (restock dari supplier) dicatat dengan menaikkan `stok_awal`. Tab "barang masuk" bisa jadi pengembangan berikutnya.

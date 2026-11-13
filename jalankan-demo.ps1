@@ -13,6 +13,8 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Start-Process powershell -ArgumentList @(
   "-NoExit", "-Command",
   "`$env:N8N_USER_FOLDER='$root'; `$env:N8N_DIAGNOSTICS_ENABLED='false'; `$env:N8N_PORT='5678'; " +
+  # Utamakan IPv4: di sebagian jaringan rumah IPv6 ke Telegram/Google macet, sehingga notifikasi gagal terkirim.
+  "`$env:NODE_OPTIONS='--dns-result-order=ipv4first'; " +
   "Write-Host 'Menyalakan n8n... tunggu tulisan: Editor is now accessible' -ForegroundColor Yellow; npx -y n8n@2.47.4"
 )
 

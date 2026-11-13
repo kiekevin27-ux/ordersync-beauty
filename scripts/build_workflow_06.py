@@ -149,7 +149,9 @@ def main():
             "additionalFields": {"appendAttribution": False},
         },
          "id": nid(7), "name": "Kirim ke Telegram", "type": "n8n-nodes-base.telegram",
-         "typeVersion": 1.2, "position": [980, -100], "onError": "continueRegularOutput"},
+         "typeVersion": 1.2, "position": [980, -100], "onError": "continueRegularOutput",
+         # Koneksi ke Telegram kadang putus sesaat: coba ulang sampai 3x sebelum menyerah.
+         "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 3000},
         {"parameters": {"jsCode": JS_HASIL}, "id": nid(8), "name": "Hasil Cek",
          "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1220, 0]},
     ]
