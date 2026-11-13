@@ -4,7 +4,7 @@ import KolomMingguan from "@/components/dasbor/KolomMingguan";
 import Batang from "@/components/dasbor/Batang";
 import TombolCekStok from "@/components/dasbor/TombolCekStok";
 import { ambilDataDasbor, type DataDasbor } from "@/lib/dasbor";
-import { sheetsTersambung } from "@/lib/sheets";
+import { alasanBelumTersambung, sheetsTersambung } from "@/lib/sheets";
 import { rupiah } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Dashboard Pemilik · Glowra Beauty (toko demo)" };
@@ -47,7 +47,7 @@ function BelumTersambung({ alasan }: { alasan: string }) {
       <p className="mt-3 text-sm text-tinta-lembut">{alasan}</p>
       <p className="mt-2 text-sm text-tinta-lembut">
         Isi <code className="font-kode">GOOGLE_SHEET_ID</code> dan <code className="font-kode">GOOGLE_SERVICE_ACCOUNT_FILE</code> (laptop) atau{" "}
-        <code className="font-kode">GOOGLE_SERVICE_ACCOUNT_JSON</code> (Vercel). Panduan: <code className="font-kode">docs/10-dashboard.md</code>.
+        <code className="font-kode">GOOGLE_SERVICE_ACCOUNT_JSON</code> (Vercel), lalu deploy ulang. Panduan: <code className="font-kode">docs/11-deploy-vercel.md</code>.
       </p>
       <Link href="/" className="tombol-garis mt-6">← Kembali ke toko</Link>
     </div>
@@ -55,7 +55,7 @@ function BelumTersambung({ alasan }: { alasan: string }) {
 }
 
 export default async function HalamanDasbor() {
-  if (!sheetsTersambung()) return <BelumTersambung alasan="Pengaturan Google Sheet belum diisi." />;
+  if (!sheetsTersambung()) return <BelumTersambung alasan={alasanBelumTersambung()} />;
   let d: DataDasbor;
   try {
     d = await ambilDataDasbor();

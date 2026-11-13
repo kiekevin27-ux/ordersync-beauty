@@ -24,6 +24,21 @@ function bacaKunci(): Kunci | null {
 
 export const sheetsTersambung = () => Boolean(process.env.GOOGLE_SHEET_ID && bacaKunci());
 
+/** Penjelasan kenapa belum tersambung (tanpa pernah menampilkan isi kunci). */
+export function alasanBelumTersambung(): string {
+  const kurang: string[] = [];
+  if (!process.env.GOOGLE_SHEET_ID) kurang.push("GOOGLE_SHEET_ID kosong");
+  const json = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  const file = process.env.GOOGLE_SERVICE_ACCOUNT_FILE;
+  if (!json && !file) kurang.push("GOOGLE_SERVICE_ACCOUNT_JSON kosong");
+  else if (!bacaKunci()) {
+    kurang.push(json
+      ? `GOOGLE_SERVICE_ACCOUNT_JSON terisi (${json.length} karakter) tapi bukan JSON yang utuh: salin ulang seluruh isi file kunci`
+      : "GOOGLE_SERVICE_ACCOUNT_FILE tidak bisa dibaca");
+  }
+  return kurang.length ? `Pengaturan belum lengkap: ${kurang.join("; ")}.` : "";
+}
+
 let token: { nilai: string; habis: number } | null = null;
 
 async function aksesToken(): Promise<string> {
