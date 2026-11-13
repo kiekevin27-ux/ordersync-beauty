@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background: #fffaf7;
+}
+
+@layer components {
+  .tombol-utama {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-anggur px-6 py-3 text-sm font-semibold text-white transition hover:bg-anggur-tua focus:outline-none focus-visible:ring-4 focus-visible:ring-mawar/30 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .tombol-garis {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-anggur/30 bg-white px-5 py-2.5 text-sm font-semibold text-anggur transition hover:border-anggur hover:bg-blush-muda focus:outline-none focus-visible:ring-4 focus-visible:ring-mawar/30 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .input {
+    @apply w-full rounded-xl border border-blush-tua bg-white px-4 py-3 text-sm outline-none transition placeholder:text-tinta-lembut/50 focus:border-mawar focus:ring-4 focus:ring-mawar/15;
+  }
+}

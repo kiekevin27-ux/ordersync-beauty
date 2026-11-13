@@ -1,0 +1,11 @@
+{
+  "channel": "website",
+  "no_pesanan": "WEB-20261113-140509-K7Q",
+  "nama_pembeli": "kak dewi   lestari",
+  "no_hp": "+62 812-555-1234",
+  "items": [
+    { "sku": "GLW-SRM-002", "qty": 2, "harga_satuan": 135000 },
+    { "sku": "GLW-SNS-001", "qty": 1, "harga_satuan": 99000 },
+    { "sku": "GLW-LTN-002", "qty": 1, "harga_satuan": 45000 }
+  ]
+}

@@ -255,9 +255,9 @@ def tab_laba(wb):
 
 
 # ---------------------------------------------------------------------------
-# Nama kolom HARUS sama persis dengan yang dipetakan di node "Simpan ke Google Sheets" (workflow 03).
-KOLOM_ORDER_MASUK = ["diterima_pada_wib", "channel", "no_pesanan", "sku", "qty", "nama_pembeli",
-                     "no_hp_normal", "no_hp_asli", "status", "catatan"]
+# Nama kolom diambil dari build_workflow_03.py supaya header sheet & pemetaan di n8n
+# tidak mungkin berbeda (satu sumber kebenaran).
+from build_workflow_03 import KOLOM_SHEET as KOLOM_ORDER_MASUK  # noqa: E402
 
 
 def tab_order_masuk(wb):
@@ -265,11 +265,16 @@ def tab_order_masuk(wb):
     ws = wb.create_sheet("Order_Masuk")
     tulis_header(ws, 1, KOLOM_ORDER_MASUK)
     # Format teks untuk kolom ID & nomor HP supaya tidak berubah jadi angka (6,28E+11).
-    for kol in ("C", "G", "H"):
+    for nama in ("id_baris", "no_pesanan", "no_hp_normal", "no_hp_asli"):
+        kol = get_column_letter(KOLOM_ORDER_MASUK.index(nama) + 1)
         for r in range(2, 1001):
             ws[f"{kol}{r}"].number_format = "@"
+    for nama in ("harga_satuan", "subtotal"):
+        kol = get_column_letter(KOLOM_ORDER_MASUK.index(nama) + 1)
+        for r in range(2, 1001):
+            ws[f"{kol}{r}"].number_format = RUPIAH
     ws.freeze_panes = "A2"
-    atur_lebar(ws, [19, 10, 21, 13, 6, 20, 15, 18, 11, 48])
+    atur_lebar(ws, [19, 34, 9, 21, 13, 6, 12, 12, 20, 15, 18, 11, 48])
 
 
 # ---------------------------------------------------------------------------

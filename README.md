@@ -20,7 +20,7 @@ Glowra Beauty jualan di **3 tempat sekaligus**: Shopee, TikTok Shop, dan WhatsAp
 
 ## 2. Solusi
 
-Fondasi data & otomasi dalam 5 lapis:
+Fondasi data & otomasi dalam 6 lapis:
 
 | Lapis | Yang dilakukan | File |
 |---|---|---|
@@ -28,7 +28,8 @@ Fondasi data & otomasi dalam 5 lapis:
 | **2. Hitung otomatis** | Spreadsheet berisi **rumus asli** (bukan angka mati): HPP, fee marketplace, laba per channel, stok akhir & status RESTOCK | [`sheets/glowra_fondasi.xlsx`](sheets/glowra_fondasi.xlsx) |
 | **3. Asumsi terpusat** | Fee marketplace & biaya packing di **satu tempat**. Fee berubah? Ubah satu sel, semua laporan ikut | [`config/asumsi.json`](config/asumsi.json) |
 | **4. Order masuk otomatis** | Webhook n8n menerima order, **menolak data tidak lengkap** dengan pesan jelas, merapikan no HP & nama, lalu membalas JSON | [`n8n/`](n8n/) |
-| **5. Langsung tercatat** | Order yang lolos validasi **otomatis ditulis ke Google Sheets** (tab `Order_Masuk`). Kiriman ulang tidak bikin baris dobel, dan nomor pesanan 18 digit tetap utuh | [`n8n/03_…`](n8n/03_webhook_ke_google_sheets.json) · [`docs/05`](docs/05-webhook-ke-google-sheets.md) |
+| **5. Langsung tercatat** | Order yang lolos validasi **otomatis ditulis ke Google Sheets** (tab `Order_Masuk`), termasuk keranjang berisi banyak produk (1 produk = 1 baris). Kiriman ulang tidak bikin baris dobel, dan nomor pesanan 18 digit tetap utuh | [`n8n/03_…`](n8n/03_webhook_ke_google_sheets.json) · [`docs/05`](docs/05-webhook-ke-google-sheets.md) |
+| **6. Toko demo** | Website toko Glowra (Next.js): katalog → keranjang → checkout → n8n → Google Sheets, dengan panel **"Di balik layar"** yang menunjukkan setiap langkah & JSON-nya. Untuk demo langsung ke calon klien | [`web/`](web/) · [`docs/06`](docs/06-toko-demo-website.md) |
 
 ## 3. Arsitektur
 
@@ -67,6 +68,7 @@ flowchart LR
     SP & TT & WA --> CM --> OG --> BW --> XL --> PV
     CFG --> BW
     SYS["Form / chatbot /<br/>API marketplace"] -->|JSON| WH --> VAL
+    WEB["🛍️ Toko demo<br/>web/ (Next.js)"] -->|"checkout JSON<br/>workflow 03"| WH
     VAL -- lengkap --> NORM --> R200
     VAL -- tidak --> R400
     NORM -->|workflow 03| GS -->|RAW| OM
@@ -76,7 +78,7 @@ flowchart LR
     classDef src fill:#fde2e4,stroke:#c9184a,color:#111;
     classDef ok fill:#d8f3dc,stroke:#2d6a4f,color:#111;
     classDef bad fill:#fff3b0,stroke:#e09f3e,color:#111;
-    class SP,TT,WA src;
+    class SP,TT,WA,WEB src;
     class R200,XL,OM,GS ok;
     class R400,R500 bad;
 ```
@@ -121,7 +123,8 @@ Keputusan teknologi dan alasannya dicatat di [`ADR-001`](docs/adr/ADR-001-stack-
 - Semua script **deterministik** (seed 42). Dijalankan 2×, hash seluruh file CSV **identik**.
 - Workbook dihitung langsung oleh **Excel**: **2.149 rumus, 0 error**. Total omzet di Laba_per_Channel **cocok** dengan tab Pesanan (selisih Rp0), dan semua angka sama dengan hitungan ulang Python.
 - Workflow n8n **diuji di n8n 2.47.4**: API publik → 5 produk. Webhook → **200** untuk order valid, **400** untuk order rusak, **404** untuk URL salah.
-- Workflow 03 (Google Sheets) **berhasil di-import ke n8n 2.47.4**, dan logika validasi + normalisasinya diuji dengan 3 contoh order (WA valid, TikTok 18 digit, order rusak). Header tab `Order_Masuk` dicek otomatis agar sama persis dengan kolom yang dipetakan di workflow.
+- Workflow 03 **diuji di n8n 2.47.4 yang berjalan sungguhan**: order rusak → **400**, keranjang dengan SKU dobel → **400**, kredensial Google palsu → **500** dengan detail error (bukan pura-pura sukses), dan jalur sukses (node Google diganti simulasi) → **200**. Header tab `Order_Masuk` diambil dari satu sumber yang sama dengan pemetaan kolom di workflow. *Penulisan ke Google Sheets asli belum diuji* karena butuh service account pemilik.
+- Toko demo diuji end-to-end di browser (Edge): keranjang 3 produk → 200, total Rp414.000 cocok; kirim ulang → baris tidak bertambah; order rusak → 400; harga palsu dari browser diabaikan.
 
 ## 5. Tech stack
 
@@ -130,6 +133,7 @@ Keputusan teknologi dan alasannya dicatat di [`ADR-001`](docs/adr/ADR-001-stack-
 | Generator & cleaning data | Python 3.12 (`csv`, `random`, `re`, tanpa library tambahan) |
 | Spreadsheet | `openpyxl` → `.xlsx` → Google Sheets (SUMIFS, COUNTIFS, XLOOKUP, IF) |
 | Otomasi | n8n: Manual Trigger, HTTP Request, Split Out, Edit Fields, Webhook, Code, IF, Respond to Webhook, Google Sheets (Service Account) |
+| Toko demo | Next.js 14 (App Router) + TypeScript + Tailwind CSS |
 | Diagram | Mermaid (ter-render langsung di GitHub) |
 | Format data | CSV UTF-8 with BOM, JSON |
 
@@ -137,7 +141,8 @@ Keputusan teknologi dan alasannya dicatat di [`ADR-001`](docs/adr/ADR-001-stack-
 
 | Tahap | Fitur | Nilai untuk seller |
 |---|---|---|
-| ✅ **Selesai** | Webhook order → **langsung tertulis ke Google Sheets** (anti dobel) | Tidak ada lagi input manual order WA |
+| ✅ **Selesai** | Webhook order → **langsung tertulis ke Google Sheets** (anti dobel, keranjang multi-produk) | Tidak ada lagi input manual order WA |
+| ✅ **Selesai** | **Toko demo** yang tersambung ke workflow | Calon klien bisa mencoba alurnya sendiri |
 | **Berikutnya** | **Follow-up WA otomatis**: pengingat H+25 setelah pembelian (skincare habis ±1 bulan), ucapan terima kasih, minta review. Lewat WhatsApp Business Platform resmi | Repeat order naik tanpa admin harus ingat |
 | | Notifikasi ke owner saat produk masuk status RESTOCK | Tidak kehabisan produk andalan |
 | **Menengah** | **Sinkron stok real-time** antar channel via API resmi Shopee & TikTok (butuh otorisasi toko & persetujuan app partner) | Overselling hilang |
@@ -153,12 +158,14 @@ Keputusan teknologi dan alasannya dicatat di [`ADR-001`](docs/adr/ADR-001-stack-
 python scripts/generate_dummy.py   # 1. buat data dummy (seed 42)
 python scripts/clean_merge.py      # 2. bersihkan & gabungkan, lalu tampilkan laporan
 python scripts/build_workbook.py   # 3. buat sheets/glowra_fondasi.xlsx
+python scripts/build_workflow_03.py # 4. buat n8n/03_webhook_ke_google_sheets.json
 ```
 
 Lalu:
 - Upload `.xlsx` ke Google Sheets, ikuti [`docs/03-panduan-google-sheets.md`](docs/03-panduan-google-sheets.md).
 - Import workflow n8n, ikuti [`docs/04-api-webhook-penjelasan.md`](docs/04-api-webhook-penjelasan.md).
 - Sambungkan ke Google Sheets (workflow 03), ikuti [`docs/05-webhook-ke-google-sheets.md`](docs/05-webhook-ke-google-sheets.md).
+- Coba alurnya dari sisi pembeli lewat toko demo, ikuti [`docs/06-toko-demo-website.md`](docs/06-toko-demo-website.md).
 
 ## 8. Struktur repo
 
@@ -171,9 +178,10 @@ ordersync-beauty/
 │   ├── master_produk.csv           ← 15 produk
 │   ├── raw/                        ← export mentah Shopee, TikTok, WA
 │   └── clean/orders_gabungan.csv   ← hasil gabungan bersih
-├── scripts/                        ← generate_dummy · clean_merge · build_workbook
+├── scripts/                        ← generate_dummy · clean_merge · build_workbook · build_workflow_03
 ├── sheets/glowra_fondasi.xlsx      ← workbook berisi rumus
 ├── n8n/                            ← 3 workflow + contoh payload tes
+├── web/                            ← toko demo Glowra (Next.js)
 └── docs/
     ├── adr/ADR-001-stack-fondasi.md
     ├── adr/ADR-002-google-sheets-service-account.md
@@ -181,7 +189,8 @@ ordersync-beauty/
     ├── 02-kamus-data.md
     ├── 03-panduan-google-sheets.md
     ├── 04-api-webhook-penjelasan.md
-    └── 05-webhook-ke-google-sheets.md
+    ├── 05-webhook-ke-google-sheets.md
+    └── 06-toko-demo-website.md
 ```
 
 ---

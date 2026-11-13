@@ -3,9 +3,9 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## 03 · Webhook → Google Sheets\n\n**Alur:** order masuk via **POST** → dicek field wajibnya → nomor HP & nama dirapikan → **ditulis ke tab `Order_Masuk` di Google Sheet** → dibalas JSON.\n\n**Anti dobel:** kalau `no_pesanan` sudah ada di sheet, barisnya **diperbarui**, bukan ditambah.\n\n**Balasan:**\n- ✅ Tersimpan → **200**\n- ❌ Data tidak lengkap → **400** (tidak ditulis ke sheet)\n- ⚠️ Gagal menulis ke Google → **500** (order jangan dianggap masuk)\n\n**Sebelum dipakai:** isi kredensial Google + URL sheet di node *Simpan ke Google Sheets*. Panduan: `docs/05-webhook-ke-google-sheets.md`.",
-        "height": 400,
-        "width": 620,
+        "content": "## 03 · Webhook → Google Sheets\n\n**Alur:** order masuk via **POST** → dicek → dirapikan & **dipecah per produk** → **ditulis ke tab `Order_Masuk`** → dirangkum → dibalas JSON.\n\n**Keranjang:** 1 order boleh berisi banyak produk (`items`). Tiap produk = 1 baris.\n\n**Anti dobel:** kunci `id_baris` = `no_pesanan|sku`. Kirim ulang order yang sama → baris lama **diperbarui**, tidak ditambah.\n\n**Balasan:** ✅ 200 tersimpan · ❌ 400 data salah (tidak ditulis) · ⚠️ 500 gagal tulis ke Google\n\n**Sebelum dipakai:** isi kredensial Google + URL sheet di node *Simpan ke Google Sheets*. Panduan: `docs/05-webhook-ke-google-sheets.md`.",
+        "height": 420,
+        "width": 640,
         "color": 7
       },
       "id": "c3f0c003-0000-4000-8000-000000000001",
@@ -14,7 +14,7 @@
       "typeVersion": 1,
       "position": [
         -60,
-        -400
+        -480
       ]
     },
     {
@@ -36,10 +36,10 @@
     },
     {
       "parameters": {
-        "jsCode": "// Validasi field wajib dari order yang masuk lewat webhook.\n// Hasil: { valid: true/false, errors: [...], order: {...data asli...} }\nconst WAJIB = ['channel', 'no_pesanan', 'sku', 'qty', 'nama_pembeli', 'no_hp'];\nconst CHANNEL_DIKENAL = ['shopee', 'tiktok', 'whatsapp'];\n\nreturn $input.all().map((item) => {\n  const body = item.json.body || {};\n  const kosong = (v) => v === undefined || v === null || String(v).trim() === '';\n  const errors = [];\n\n  for (const field of WAJIB) {\n    if (kosong(body[field])) errors.push(`Field '${field}' wajib diisi`);\n  }\n  if (!kosong(body.channel) && !CHANNEL_DIKENAL.includes(String(body.channel).trim().toLowerCase())) {\n    errors.push(`Field 'channel' harus salah satu dari: ${CHANNEL_DIKENAL.join(', ')}`);\n  }\n  if (!kosong(body.qty)) {\n    const qty = Number(body.qty);\n    if (!Number.isInteger(qty) || qty <= 0) errors.push(\"Field 'qty' harus angka bulat lebih dari 0\");\n  }\n  if (!kosong(body.sku) && !/^GLW-[A-Z]{3}-\\d{3}$/.test(String(body.sku).trim().toUpperCase())) {\n    errors.push(\"Field 'sku' harus berformat GLW-XXX-000 (contoh: GLW-SRM-001)\");\n  }\n  if (!kosong(body.no_hp)) {\n    const digit = String(body.no_hp).replace(/\\D/g, '');\n    if (digit.length < 9 || digit.length > 15) errors.push(\"Field 'no_hp' harus berisi 9-15 digit angka\");\n  }\n\n  return { json: { valid: errors.length === 0, errors, order: body } };\n});\n"
+        "jsCode": "// Validasi order yang masuk lewat webhook.\n// Format baru (keranjang): { channel, no_pesanan, nama_pembeli, no_hp, items: [{ sku, qty, harga_satuan? }] }\n// Format lama (1 produk) tetap diterima: { channel, no_pesanan, nama_pembeli, no_hp, sku, qty }\n// Hasil: { valid: true/false, errors: [...], order: {...data asli + items...} }\nconst WAJIB = ['channel', 'no_pesanan', 'nama_pembeli', 'no_hp'];\nconst CHANNEL_DIKENAL = ['shopee', 'tiktok', 'whatsapp', 'website'];\nconst POLA_SKU = /^GLW-[A-Z]{3}-\\d{3}$/;\nconst MAKS_PRODUK = 30;\n\nreturn $input.all().map((item) => {\n  const body = item.json.body || {};\n  const kosong = (v) => v === undefined || v === null || String(v).trim() === '';\n  const errors = [];\n\n  for (const field of WAJIB) {\n    if (kosong(body[field])) errors.push(`Field '${field}' wajib diisi`);\n  }\n  if (!kosong(body.channel) && !CHANNEL_DIKENAL.includes(String(body.channel).trim().toLowerCase())) {\n    errors.push(`Field 'channel' harus salah satu dari: ${CHANNEL_DIKENAL.join(', ')}`);\n  }\n  if (!kosong(body.no_hp)) {\n    const digit = String(body.no_hp).replace(/\\D/g, '');\n    if (digit.length < 9 || digit.length > 15) errors.push(\"Field 'no_hp' harus berisi 9-15 digit angka\");\n  }\n\n  // Ambil daftar produk: format baru (items) atau format lama (sku + qty).\n  let items = [];\n  if (Array.isArray(body.items)) items = body.items;\n  else if (!kosong(body.sku) || !kosong(body.qty)) items = [{ sku: body.sku, qty: body.qty }];\n\n  if (items.length === 0) errors.push(\"Order harus berisi minimal 1 produk (field 'items', atau 'sku' + 'qty')\");\n  if (items.length > MAKS_PRODUK) errors.push(`Maksimal ${MAKS_PRODUK} produk per order`);\n\n  const skuTerlihat = new Set();\n  items.forEach((it, i) => {\n    const label = items.length > 1 ? `Produk #${i + 1}: ` : '';\n    it = it || {};\n    if (kosong(it.sku)) {\n      errors.push(`${label}Field 'sku' wajib diisi`);\n    } else {\n      const sku = String(it.sku).trim().toUpperCase();\n      if (!POLA_SKU.test(sku)) errors.push(`${label}Field 'sku' harus berformat GLW-XXX-000 (contoh: GLW-SRM-001)`);\n      if (skuTerlihat.has(sku)) errors.push(`${label}SKU ${sku} muncul dua kali, gabungkan qty-nya`);\n      skuTerlihat.add(sku);\n    }\n    if (kosong(it.qty)) {\n      errors.push(`${label}Field 'qty' wajib diisi`);\n    } else {\n      const qty = Number(it.qty);\n      if (!Number.isInteger(qty) || qty <= 0) errors.push(`${label}Field 'qty' harus angka bulat lebih dari 0`);\n    }\n    if (!kosong(it.harga_satuan)) {\n      const h = Number(it.harga_satuan);\n      if (!Number.isInteger(h) || h < 0) errors.push(`${label}Field 'harga_satuan' harus angka bulat (rupiah)`);\n    }\n  });\n\n  return { json: { valid: errors.length === 0, errors, order: { ...body, items } } };\n});"
       },
       "id": "c3f0c003-0000-4000-8000-000000000003",
-      "name": "Validasi Field Wajib",
+      "name": "Validasi Order",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -57,7 +57,7 @@
           },
           "conditions": [
             {
-              "id": "d3000001-0000-4000-8000-000000000001",
+              "id": "d3000003-0000-4000-8000-000000000001",
               "leftValue": "={{ $json.valid }}",
               "rightValue": "",
               "operator": {
@@ -82,49 +82,15 @@
     },
     {
       "parameters": {
-        "jsCode": "// Rapikan data order: nomor HP -> 628xxx, SKU huruf besar, nama Huruf Awal Kapital.\n// Aturan sama dengan scripts/clean_merge.py supaya hasilnya konsisten.\nreturn $input.all().map((item) => {\n  const o = item.json.order;\n\n  let hp = String(o.no_hp).replace(/\\D/g, '');      // buang spasi, strip, +, ( )\n  if (hp.startsWith('0')) hp = '62' + hp.slice(1);  // 0812... -> 62812...\n  else if (hp.startsWith('8')) hp = '62' + hp;      // 812...  -> 62812...\n  const hpValid = hp.startsWith('628') && hp.length >= 11 && hp.length <= 14;\n\n  const nama = String(o.nama_pembeli)\n    .trim()\n    .replace(/\\s+/g, ' ')\n    .replace(/^(kak|ka|kk)\\s+/i, '')\n    .toLowerCase()\n    .replace(/(^|\\s)\\S/g, (c) => c.toUpperCase());\n\n  return {\n    json: {\n      status: hpValid ? 'diterima' : 'perlu_cek',\n      pesan: hpValid\n        ? 'Order diterima dan siap diproses'\n        : 'Order diterima, tapi nomor HP bukan nomor Indonesia (628...). Mohon cek manual.',\n      order: {\n        channel: String(o.channel).trim().toLowerCase(),\n        no_pesanan: String(o.no_pesanan).trim(),\n        sku: String(o.sku).trim().toUpperCase(),\n        qty: Number(o.qty),\n        nama_pembeli: nama,\n        no_hp_asli: o.no_hp,\n        no_hp_normal: hp,\n      },\n      // Waktu WIB yang enak dibaca di sheet, contoh: 2026-11-13 14:05:09\n      diterima_pada_wib: $now.setZone('Asia/Jakarta').toFormat('yyyy-MM-dd HH:mm:ss'),\n    },\n  };\n});\n"
+        "jsCode": "// Rapikan data order, lalu PECAH jadi 1 item per produk (1 item = 1 baris di sheet).\n// Aturan no HP & nama sama dengan scripts/clean_merge.py supaya hasilnya konsisten.\nconst hasil = [];\nconst kosong = (v) => v === undefined || v === null || String(v).trim() === '';\nconst waktuWib = $now.setZone('Asia/Jakarta').toFormat('yyyy-MM-dd HH:mm:ss');\n\nfor (const item of $input.all()) {\n  const o = item.json.order;\n\n  let hp = String(o.no_hp).replace(/\\D/g, '');      // buang spasi, strip, +, ( )\n  if (hp.startsWith('0')) hp = '62' + hp.slice(1);  // 0812... -> 62812...\n  else if (hp.startsWith('8')) hp = '62' + hp;      // 812...  -> 62812...\n  const hpValid = hp.startsWith('628') && hp.length >= 11 && hp.length <= 14;\n\n  const nama = String(o.nama_pembeli)\n    .trim()\n    .replace(/\\s+/g, ' ')\n    .replace(/^(kak|ka|kk)\\s+/i, '')\n    .toLowerCase()\n    .replace(/(^|\\s)\\S/g, (c) => c.toUpperCase());\n\n  const noPesanan = String(o.no_pesanan).trim();\n\n  for (const it of o.items) {\n    const sku = String(it.sku).trim().toUpperCase();\n    const qty = Number(it.qty);\n    const harga = kosong(it.harga_satuan) ? '' : Number(it.harga_satuan);\n    hasil.push({\n      json: {\n        diterima_pada_wib: waktuWib,                 // contoh: 2026-11-13 14:05:09\n        id_baris: `${noPesanan}|${sku}`,             // kunci anti dobel di sheet\n        channel: String(o.channel).trim().toLowerCase(),\n        no_pesanan: noPesanan,\n        sku,\n        qty,\n        harga_satuan: harga,\n        subtotal: harga === '' ? '' : harga * qty,\n        nama_pembeli: nama,\n        no_hp_normal: hp,\n        no_hp_asli: String(o.no_hp),\n        status: hpValid ? 'diterima' : 'perlu_cek',\n        catatan: hpValid ? 'Order diterima dan siap diproses'\n                         : 'Nomor HP bukan nomor Indonesia (628...). Mohon cek manual.',\n      },\n    });\n  }\n}\nreturn hasil;"
       },
       "id": "c3f0c003-0000-4000-8000-000000000005",
-      "name": "Normalisasi No HP",
+      "name": "Normalisasi Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         720,
         -100
-      ]
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ { ...$('Normalisasi No HP').item.json, tersimpan_di_sheet: true } }}",
-        "options": {
-          "responseCode": 200
-        }
-      },
-      "id": "c3f0c003-0000-4000-8000-000000000006",
-      "name": "Balas 200 - Diterima",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [
-        1220,
-        -180
-      ]
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ { status: 'ditolak', pesan: 'Data order tidak lengkap atau tidak valid', errors: $json.errors } }}",
-        "options": {
-          "responseCode": 400
-        }
-      },
-      "id": "c3f0c003-0000-4000-8000-000000000007",
-      "name": "Balas 400 - Ditolak",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [
-        720,
-        160
       ]
     },
     {
@@ -145,23 +111,36 @@
           "mappingMode": "defineBelow",
           "value": {
             "diterima_pada_wib": "={{ $json.diterima_pada_wib }}",
-            "channel": "={{ $json.order.channel }}",
-            "no_pesanan": "={{ $json.order.no_pesanan }}",
-            "sku": "={{ $json.order.sku }}",
-            "qty": "={{ $json.order.qty }}",
-            "nama_pembeli": "={{ $json.order.nama_pembeli }}",
-            "no_hp_normal": "={{ $json.order.no_hp_normal }}",
-            "no_hp_asli": "={{ $json.order.no_hp_asli }}",
+            "id_baris": "={{ $json.id_baris }}",
+            "channel": "={{ $json.channel }}",
+            "no_pesanan": "={{ $json.no_pesanan }}",
+            "sku": "={{ $json.sku }}",
+            "qty": "={{ $json.qty }}",
+            "harga_satuan": "={{ $json.harga_satuan }}",
+            "subtotal": "={{ $json.subtotal }}",
+            "nama_pembeli": "={{ $json.nama_pembeli }}",
+            "no_hp_normal": "={{ $json.no_hp_normal }}",
+            "no_hp_asli": "={{ $json.no_hp_asli }}",
             "status": "={{ $json.status }}",
-            "catatan": "={{ $json.pesan }}"
+            "catatan": "={{ $json.catatan }}"
           },
           "matchingColumns": [
-            "no_pesanan"
+            "id_baris"
           ],
           "schema": [
             {
               "id": "diterima_pada_wib",
               "displayName": "diterima_pada_wib",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "id_baris",
+              "displayName": "id_baris",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -202,6 +181,26 @@
             {
               "id": "qty",
               "displayName": "qty",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "harga_satuan",
+              "displayName": "harga_satuan",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "subtotal",
+              "displayName": "subtotal",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -267,7 +266,7 @@
           "cellFormat": "RAW"
         }
       },
-      "id": "c3f0c003-0000-4000-8000-000000000020",
+      "id": "c3f0c003-0000-4000-8000-000000000006",
       "name": "Simpan ke Google Sheets",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
@@ -275,23 +274,104 @@
         960,
         -100
       ],
-      "onError": "continueErrorOutput"
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Rangkum hasil penulisan ke Google Sheets jadi 1 balasan untuk pengirim.\n// Node Google Sheets diset \"continue on error\": kalau gagal, item berisi field `error`.\nconst gagal = $input.all().filter((i) => i.json.error);\nconst baris = $('Normalisasi Data').all().map((i) => i.json);\nconst r = baris[0];\nconst semuaBerharga = baris.every((b) => b.subtotal !== '');\nconst perluCek = baris.some((b) => b.status === 'perlu_cek');\nconst tersimpan = gagal.length === 0;\n\nlet status = 'diterima';\nlet pesan = 'Order diterima dan sudah tercatat di Google Sheets';\nif (!tersimpan) {\n  status = 'gagal_simpan';\n  pesan = 'Order valid, tetapi gagal ditulis ke Google Sheets. Coba kirim ulang atau cek kredensial/URL sheet.';\n} else if (perluCek) {\n  status = 'perlu_cek';\n  pesan = 'Order tercatat, tetapi nomor HP bukan nomor Indonesia (628...). Admin perlu cek manual.';\n}\n\nlet detail = null;\nif (!tersimpan) {\n  const e = gagal[0].json.error;\n  detail = typeof e === 'string' ? e : (e && (e.message || e.description)) || JSON.stringify(e);\n}\n\nreturn [{\n  json: {\n    tersimpan,\n    balasan: {\n      status,\n      pesan,\n      no_pesanan: r.no_pesanan,\n      channel: r.channel,\n      nama_pembeli: r.nama_pembeli,\n      no_hp_normal: r.no_hp_normal,\n      jumlah_produk: baris.length,\n      total_qty: baris.reduce((s, b) => s + b.qty, 0),\n      total: semuaBerharga ? baris.reduce((s, b) => s + b.subtotal, 0) : null,\n      items: baris.map((b) => ({ sku: b.sku, qty: b.qty, harga_satuan: b.harga_satuan, subtotal: b.subtotal })),\n      diterima_pada_wib: r.diterima_pada_wib,\n      tersimpan_di_sheet: tersimpan,\n      detail_error: detail,\n    },\n  },\n}];"
+      },
+      "id": "c3f0c003-0000-4000-8000-000000000007",
+      "name": "Rangkum Hasil",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "d3000003-0000-4000-8000-000000000002",
+              "leftValue": "={{ $json.tersimpan }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c3f0c003-0000-4000-8000-000000000008",
+      "name": "Tersimpan?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        -100
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { status: 'gagal_simpan', pesan: 'Order valid, tetapi gagal ditulis ke Google Sheets. Coba kirim ulang atau cek kredensial/URL sheet.', order: $('Normalisasi No HP').item.json.order, tersimpan_di_sheet: false } }}",
+        "responseBody": "={{ $json.balasan }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "c3f0c003-0000-4000-8000-000000000009",
+      "name": "Balas 200 - Tersimpan",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1680,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.balasan }}",
         "options": {
           "responseCode": 500
         }
       },
-      "id": "c3f0c003-0000-4000-8000-000000000021",
+      "id": "c3f0c003-0000-4000-8000-000000000010",
       "name": "Balas 500 - Gagal Simpan",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        1220,
-        20
+        1680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: 'ditolak', pesan: 'Data order tidak lengkap atau tidak valid', errors: $json.errors } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "c3f0c003-0000-4000-8000-000000000011",
+      "name": "Balas 400 - Ditolak",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        160
       ]
     }
   ],
@@ -300,14 +380,14 @@
       "main": [
         [
           {
-            "node": "Validasi Field Wajib",
+            "node": "Validasi Order",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Validasi Field Wajib": {
+    "Validasi Order": {
       "main": [
         [
           {
@@ -322,7 +402,7 @@
       "main": [
         [
           {
-            "node": "Normalisasi No HP",
+            "node": "Normalisasi Data",
             "type": "main",
             "index": 0
           }
@@ -336,7 +416,7 @@
         ]
       ]
     },
-    "Normalisasi No HP": {
+    "Normalisasi Data": {
       "main": [
         [
           {
@@ -351,7 +431,29 @@
       "main": [
         [
           {
-            "node": "Balas 200 - Diterima",
+            "node": "Rangkum Hasil",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rangkum Hasil": {
+      "main": [
+        [
+          {
+            "node": "Tersimpan?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tersimpan?": {
+      "main": [
+        [
+          {
+            "node": "Balas 200 - Tersimpan",
             "type": "main",
             "index": 0
           }
