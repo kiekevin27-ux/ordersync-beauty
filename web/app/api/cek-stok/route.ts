@@ -7,7 +7,7 @@ import { cekStok } from "@/lib/stok";
  * Mode n8n: webhook workflow 06. Mode Vercel: pemantau stok bawaan (lib/stok.ts).
  */
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60; // batas aman Vercel Hobby; normalnya selesai < 5 detik
 
 export async function POST() {
   const url = process.env.N8N_CEK_STOK_URL;

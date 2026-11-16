@@ -9,7 +9,7 @@ import { kirimPesan } from "@/lib/telegram";
  * (diatur saat webhook dipasang), supaya orang lain tidak bisa berpura-pura menjadi Telegram.
  */
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60; // batas aman Vercel Hobby; normalnya selesai < 5 detik
 
 type Update = { message?: { chat: { id: number }; from?: { first_name?: string }; text?: string } };
 

@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { cariProduk } from "@/lib/produk";
 import type { HasilCheckout, PermintaanCheckout } from "@/lib/tipe";
 import { pingCekStok } from "@/lib/cekStok";
+import { periksaCheckout } from "@/lib/cekCheckout";
 import { prosesOrder } from "@/lib/gerbang";
 import { sheetsTersambung } from "@/lib/sheets";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60; // batas aman Vercel Hobby; normalnya selesai < 5 detik
 
 /**
  * POST /api/checkout
@@ -75,6 +76,12 @@ export async function POST(req: Request) {
     no_hp: body.no_hp ?? "",
     items,
   };
+
+  // Batas qty, stok cukup, dan kirim ulang yang aman (lihat lib/cekCheckout.ts).
+  if (sheetsTersambung()) {
+    const tolak = await periksaCheckout(payload, noPesanan === body.no_pesanan);
+    if (tolak) return balas({ ...kosong, hasil: "ditolak_toko", dikirim: payload, pesan: tolak.pesan }, tolak.http);
+  }
 
   const url = process.env.N8N_WEBHOOK_URL;
   if (!url && sheetsTersambung()) {

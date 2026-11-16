@@ -8,7 +8,7 @@ import { cekStok } from "@/lib/stok";
  * Pengaman: Vercel mengirim header "Authorization: Bearer <CRON_SECRET>".
  */
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60; // batas aman Vercel Hobby; normalnya selesai < 5 detik
 
 export async function GET(req: Request) {
   const rahasia = process.env.CRON_SECRET;

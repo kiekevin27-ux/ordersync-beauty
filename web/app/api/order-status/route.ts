@@ -9,7 +9,7 @@ import { ubahStatusToko } from "@/lib/statusToko";
  * Setiap perubahan dikabari ke Telegram (lib/lacak.ts) lalu stok dicek ulang (batal = stok kembali).
  */
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60; // batas aman Vercel Hobby; normalnya selesai < 5 detik
 
 export async function POST(req: Request) {
   if (!sheetsTersambung()) return NextResponse.json({ ok: false, pesan: "Google Sheets belum tersambung." }, { status: 503 });

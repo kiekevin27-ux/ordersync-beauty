@@ -8,7 +8,7 @@ import { buatOrderUji, resetUji } from "@/lib/ujiStok";
  * POST /api/uji-stok → { aksi: "habiskan" | "menipis", sku } atau { aksi: "reset" }
  */
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60; // batas aman Vercel Hobby; normalnya selesai < 5 detik
 
 const belum = () => NextResponse.json({ ok: false, pesan: "Google Sheets belum tersambung." }, { status: 503 });
 

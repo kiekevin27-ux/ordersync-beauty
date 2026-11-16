@@ -14,7 +14,7 @@ import { sheetsTersambung } from "@/lib/sheets";
  * Tanpa n8n (versi Vercel), notifikasinya diproses lib/marketplace.ts dengan aturan yang sama.
  */
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60; // batas aman Vercel Hobby; normalnya selesai < 5 detik
 
 const BATAS_WAKTU_MS = 30_000;
 

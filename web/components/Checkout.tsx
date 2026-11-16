@@ -16,6 +16,7 @@ const SHEET_URL = process.env.NEXT_PUBLIC_SHEET_URL;
 const JUDUL: Record<HasilCheckout["hasil"], { judul: string; warna: string }> = {
   tersimpan: { judul: "Order tercatat di Google Sheets 🎉", warna: "border-emerald-300 bg-emerald-50 text-emerald-900" },
   ditolak: { judul: `Order ditolak oleh ${NAMA_MESIN} (400)`, warna: "border-amber-300 bg-amber-50 text-amber-900" },
+  ditolak_toko: { judul: "Pesanan belum bisa diproses", warna: "border-amber-300 bg-amber-50 text-amber-900" },
   gagal_simpan: { judul: "Order valid, tapi gagal ditulis ke Google Sheets (500)", warna: "border-mawar/40 bg-blush-muda text-anggur-tua" },
   tidak_terhubung: { judul: `Website tidak bisa menghubungi ${NAMA_MESIN}`, warna: "border-mawar/40 bg-blush-muda text-anggur-tua" },
   salah_input: { judul: "Permintaan tidak valid", warna: "border-mawar/40 bg-blush-muda text-anggur-tua" },

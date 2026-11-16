@@ -72,12 +72,27 @@ async function aksesToken(scope = IZIN_BACA): Promise<string> {
 }
 
 /** Baca beberapa tab sekaligus. Baris pertama = header; hasilnya array objek per baris. */
+/**
+ * fetch ke Google dengan coba ulang. Google membatasi ±60 akses/menit; saat ramai ia membalas 429
+ * ("terlalu banyak permintaan"), dan itu aman diulang karena permintaannya DITOLAK, bukan dijalankan.
+ * Galat server (5xx) hanya diulang untuk permintaan baca, supaya tulisan tidak tercatat dua kali.
+ */
+async function fetchGoogle(url: string, init: RequestInit, bolehUlang5xx: boolean): Promise<Response> {
+  for (let coba = 1; ; coba++) {
+    const res = await fetch(url, init);
+    const ulang = res.status === 429 || (bolehUlang5xx && res.status >= 500);
+    if (!ulang || coba >= 4) return res;
+    await new Promise((r) => setTimeout(r, 1000 * 2 ** (coba - 1) + Math.random() * 500)); // 1s, 2s, 4s
+  }
+}
+
 export async function bacaTab(tab: string[]): Promise<Record<string, Record<string, unknown>[]>> {
   const id = process.env.GOOGLE_SHEET_ID;
   const qs = tab.map((t) => `ranges=${encodeURIComponent(t)}`).join("&");
-  const res = await fetch(
+  const res = await fetchGoogle(
     `https://sheets.googleapis.com/v4/spreadsheets/${id}/values:batchGet?${qs}&valueRenderOption=UNFORMATTED_VALUE`,
     { headers: { Authorization: `Bearer ${await aksesToken()}` }, cache: "no-store" },
+    true,
   );
   const j = await res.json();
   if (!res.ok) throw new Error(`Google Sheets: ${j.error?.message ?? res.status}`);
@@ -95,12 +110,13 @@ export async function bacaTab(tab: string[]): Promise<Record<string, Record<stri
 const URL_SHEET = () => `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}`;
 
 async function panggil(path: string, init: RequestInit = {}) {
-  const res = await fetch(`${URL_SHEET()}${path}`, {
+  const baca = !init.method || init.method === "GET";
+  const res = await fetchGoogle(`${URL_SHEET()}${path}`, {
     ...init,
     headers: { Authorization: `Bearer ${await aksesToken(IZIN_TULIS)}`, "Content-Type": "application/json" },
     cache: "no-store",
     signal: AbortSignal.timeout(20_000),
-  });
+  }, baca);
   const j = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`Google Sheets: ${j.error?.message ?? res.status}`);
   return j;

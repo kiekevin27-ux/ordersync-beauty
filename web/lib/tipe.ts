@@ -12,7 +12,7 @@ export type PermintaanCheckout = {
 /** Balasan /api/checkout ke browser: hasil n8n + data mentah untuk panel "di balik layar". */
 export type HasilCheckout = {
   /** "tersimpan" (200), "ditolak" (400), "gagal_simpan" (500), "tidak_terhubung" (n8n mati/salah alamat) */
-  hasil: "tersimpan" | "ditolak" | "gagal_simpan" | "tidak_terhubung" | "salah_input";
+  hasil: "tersimpan" | "ditolak" | "ditolak_toko" | "gagal_simpan" | "tidak_terhubung" | "salah_input";
   http_status: number | null;
   pesan: string;
   dikirim: Record<string, unknown> | null;

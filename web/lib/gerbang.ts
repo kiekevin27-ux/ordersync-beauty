@@ -17,6 +17,7 @@ const STATUS_PESANAN = ["baru", "diproses", "dikirim", "sampai", "selesai", "bat
 const POLA_SKU = /^GLW-[A-Z]{3}-\d{3}$/;
 const POLA_TANGGAL = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}(:\d{2})?)?$/;
 const MAKS_PRODUK = 30;
+const MAKS_QTY = 999; // jaga-jaga angka tidak masuk akal (mis. 1000000) dari kiriman langsung
 const MAKS_ORDER = 2000;
 
 type Obj = Record<string, unknown>;
@@ -80,6 +81,7 @@ function cekOrder(body: Obj) {
     } else {
       const qty = Number(it.qty);
       if (!Number.isInteger(qty) || qty <= 0) errors.push(`${label}Field 'qty' harus angka bulat lebih dari 0`);
+      else if (qty > MAKS_QTY) errors.push(`${label}Field 'qty' maksimal ${MAKS_QTY}`);
     }
     if (!kosong(it.harga_satuan)) {
       const h = Number(it.harga_satuan);

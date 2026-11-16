@@ -59,6 +59,17 @@ Kolom `kurir` dan `no_resi` dibuat otomatis di ujung tab `Order_Masuk`. Status `
 
 > Catatan: mesin n8n di laptop (wf 03/04) belum mengenal status `sampai`. Di sana paket yang sampai masih tercatat `dikirim`.
 
+## Pengaman yang sudah dipasang
+
+| Risiko | Pengaman |
+|---|---|
+| Membeli melebihi sisa stok, atau qty tidak masuk akal lewat kiriman langsung | Checkout menolak qty > 20 dan qty > sisa stok (`lib/cekCheckout.ts`); gerbang menolak qty > 999 |
+| "Kirim ulang" menimpa order yang sudah dikemas / order orang lain | Kirim ulang hanya untuk order berstatus **baru** dengan **no HP yang sama** |
+| Telegram lambat membuat checkout ikut lambat atau gagal | Notifikasi memakai mode cepat (2× coba, 4 detik); batas waktu fungsi Vercel 60 detik |
+| Google Sheets menolak karena terlalu ramai (429) | Otomatis dicoba ulang 3× (1, 2, 4 detik) |
+
+Belum dipasang (wajib sebelum dipakai toko sungguhan): PIN pemilik untuk Dashboard, Uji Stok, dan tombol ubah status; serta pembatas jumlah permintaan per menit.
+
 ## Menguji bot: halaman Uji Stok
 
 Buka **`/uji-stok`** (link *Uji Bot* di menu atas, atau dari Dashboard):
