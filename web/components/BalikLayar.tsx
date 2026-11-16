@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { HasilCheckout } from "@/lib/tipe";
+import { MESIN_VERCEL, NAMA_MESIN } from "@/lib/mesin";
 
 export type StatusLangkah = "ok" | "gagal" | "lewat" | "peringatan";
 export type Langkah = { id: string; judul: string; isi: string; status: StatusLangkah };
@@ -17,7 +18,7 @@ const GAYA: Record<StatusLangkah, { lingkar: string; ikon: string; teks: string 
 export function langkahCheckout(h: HasilCheckout): Langkah[] {
   const dasar = [
     { id: "web", judul: "Website", isi: "Harga dihitung ulang di server, no pesanan dibuat" },
-    { id: "webhook", judul: "Webhook n8n", isi: "Workflow 03 menerima POST" },
+    { id: "webhook", judul: MESIN_VERCEL ? "Gerbang order" : "Webhook n8n", isi: MESIN_VERCEL ? "Logika workflow 03 di server Vercel" : "Workflow 03 menerima POST" },
     { id: "validasi", judul: "Validasi", isi: "Field wajib, SKU, qty, no HP" },
     { id: "normal", judul: "Normalisasi", isi: "No HP → 628…, nama rapi, 1 produk = 1 baris" },
     { id: "sheets", judul: "Google Sheets", isi: "Upsert ke tab Order_Masuk (kunci no_pesanan|sku)" },
@@ -58,7 +59,7 @@ type Props = {
 
 export default function BalikLayar({
   langkah, http_status, durasi_ms, dikirim, diterima, webhook_url,
-  labelKirim = "JSON dikirim ke n8n", labelTerima = "JSON balasan n8n",
+  labelKirim = `JSON dikirim ke ${NAMA_MESIN}`, labelTerima = `JSON balasan ${NAMA_MESIN}`,
 }: Props) {
   const [tab, setTab] = useState<"kirim" | "terima">("terima");
   const json = tab === "kirim" ? dikirim : diterima;

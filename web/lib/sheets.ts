@@ -5,7 +5,8 @@
  *   GOOGLE_SHEET_ID                  ID sheet (bagian URL setelah /d/)
  *   GOOGLE_SERVICE_ACCOUNT_FILE      path file kunci .json (untuk laptop), ATAU
  *   GOOGLE_SERVICE_ACCOUNT_JSON      isi file kunci .json (untuk Vercel)
- * Izin yang diminta hanya BACA (spreadsheets.readonly).
+ * Membaca memakai izin BACA saja (spreadsheets.readonly). Izin TULIS (spreadsheets) hanya diminta oleh
+ * fungsi tulis di bawah (dipakai mesin otomasi versi Vercel: lib/gerbang.ts & lib/stok.ts).
  */
 import { createSign } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -39,9 +40,12 @@ export function alasanBelumTersambung(): string {
   return kurang.length ? `Pengaturan belum lengkap: ${kurang.join("; ")}.` : "";
 }
 
-let token: { nilai: string; habis: number } | null = null;
+const IZIN_BACA = "https://www.googleapis.com/auth/spreadsheets.readonly";
+const IZIN_TULIS = "https://www.googleapis.com/auth/spreadsheets";
+const tokenTersimpan = new Map<string, { nilai: string; habis: number }>();
 
-async function aksesToken(): Promise<string> {
+async function aksesToken(scope = IZIN_BACA): Promise<string> {
+  const token = tokenTersimpan.get(scope);
   if (token && token.habis > Date.now() + 60_000) return token.nilai;
   const k = bacaKunci();
   if (!k) throw new Error("Kunci service account belum diatur");
@@ -49,7 +53,7 @@ async function aksesToken(): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const isi = `${b64({ alg: "RS256", typ: "JWT" })}.${b64({
     iss: k.client_email,
-    scope: "https://www.googleapis.com/auth/spreadsheets.readonly",
+    scope,
     aud: "https://oauth2.googleapis.com/token",
     iat: now,
     exp: now + 3600,
@@ -63,8 +67,8 @@ async function aksesToken(): Promise<string> {
   });
   const j = await res.json();
   if (!j.access_token) throw new Error(`Gagal login Google: ${j.error_description ?? j.error ?? res.status}`);
-  token = { nilai: j.access_token, habis: Date.now() + j.expires_in * 1000 };
-  return token.nilai;
+  tokenTersimpan.set(scope, { nilai: j.access_token, habis: Date.now() + j.expires_in * 1000 });
+  return j.access_token;
 }
 
 /** Baca beberapa tab sekaligus. Baris pertama = header; hasilnya array objek per baris. */
@@ -83,4 +87,98 @@ export async function bacaTab(tab: string[]): Promise<Record<string, Record<stri
     hasil[tab[i]] = baris.map((r) => Object.fromEntries((header as string[]).map((h, c) => [h, r[c] ?? ""])));
   });
   return hasil;
+}
+
+// ---------------------------------------------------------------------------
+// TULIS (mesin otomasi versi Vercel)
+// ---------------------------------------------------------------------------
+const URL_SHEET = () => `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}`;
+
+async function panggil(path: string, init: RequestInit = {}) {
+  const res = await fetch(`${URL_SHEET()}${path}`, {
+    ...init,
+    headers: { Authorization: `Bearer ${await aksesToken(IZIN_TULIS)}`, "Content-Type": "application/json" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(20_000),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Google Sheets: ${j.error?.message ?? res.status}`);
+  return j;
+}
+
+/** Huruf kolom: 0 → A, 25 → Z, 26 → AA. */
+export function hurufKolom(i: number): string {
+  let s = "";
+  for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+  return s;
+}
+
+const rentang = (tab: string, r: string) => encodeURIComponent(`'${tab}'!${r}`);
+
+/** Baca isi tab apa adanya (array baris). Kosong kalau tab belum ada isinya. */
+export async function bacaMentah(tab: string): Promise<unknown[][]> {
+  const j = await panggil(`/values/${rentang(tab, "A1:ZZ")}?valueRenderOption=UNFORMATTED_VALUE`);
+  return (j.values ?? []) as unknown[][];
+}
+
+/** Buat tab baru kalau belum ada. */
+export async function pastikanTab(tab: string): Promise<void> {
+  const j = await panggil(`?fields=sheets.properties.title`);
+  const ada = (j.sheets ?? []).some((s: { properties: { title: string } }) => s.properties.title === tab);
+  if (!ada) await panggil(`:batchUpdate`, { method: "POST", body: JSON.stringify({ requests: [{ addSheet: { properties: { title: tab } } }] }) });
+}
+
+/** Tulis nilai ke rentang tertentu (RAW = disimpan apa adanya, tidak ditebak Google). */
+export async function tulisRentang(tab: string, r: string, values: unknown[][]): Promise<void> {
+  await panggil(`/values/${rentang(tab, r)}?valueInputOption=RAW`, { method: "PUT", body: JSON.stringify({ values }) });
+}
+
+/**
+ * UPSERT: baris yang `kunci`-nya sudah ada DIPERBARUI, sisanya DITAMBAHKAN di bawah.
+ * Sama dengan node Google Sheets n8n "appendOrUpdate" + auto-map + insertInNewColumn:
+ *  - nama field = nama kolom; kolom yang belum ada dibuat di ujung header,
+ *  - kolom lain di baris yang sama tidak disentuh,
+ *  - semua perubahan dikirim dalam 1-2 panggilan (hemat kuota Google ±60/menit).
+ */
+export async function upsertBaris(tab: string, baris: Record<string, unknown>[], kunci: string) {
+  const isi = await bacaMentah(tab);
+  const header = ((isi[0] ?? []) as unknown[]).map(String);
+  const headerBaru = [...header];
+  for (const b of baris) for (const k of Object.keys(b)) if (!headerBaru.includes(k)) headerBaru.push(k);
+  const kolomKunci = headerBaru.indexOf(kunci);
+
+  const posisi = new Map<string, number>(); // nilai kunci -> nomor baris di sheet (1 = header)
+  isi.slice(1).forEach((r, i) => {
+    const v = String((r as unknown[])[kolomKunci] ?? "");
+    if (v) posisi.set(v, i + 2);
+  });
+
+  const akhir = hurufKolom(headerBaru.length - 1);
+  const data: { range: string; values: unknown[][] }[] = [];
+  if (headerBaru.length !== header.length) data.push({ range: `'${tab}'!A1:${akhir}1`, values: [headerBaru] });
+
+  const tambah: unknown[][] = [];
+  let diperbarui = 0;
+  for (const b of baris) {
+    const no = posisi.get(String(b[kunci]));
+    if (no) {
+      const lama = [...((isi[no - 1] ?? []) as unknown[])];
+      const r = headerBaru.map((h, c) => (h in b ? b[h] : lama[c] ?? ""));
+      data.push({ range: `'${tab}'!A${no}:${akhir}${no}`, values: [r] });
+      diperbarui++;
+    } else {
+      tambah.push(headerBaru.map((h) => (h in b ? b[h] : "")));
+    }
+  }
+  if (data.length) {
+    await panggil(`/values:batchUpdate`, { method: "POST", body: JSON.stringify({ valueInputOption: "RAW", data }) });
+  }
+  // Baris baru: "append" otomatis menambah baris di bawah tabel (sheet ikut membesar kalau perlu).
+  if (tambah.length) {
+    await panggil(`/values/${rentang(tab, `A1:${akhir}1`)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+      method: "POST",
+      body: JSON.stringify({ values: tambah }),
+    });
+  }
+  return { ditambah: tambah.length, diperbarui };
 }

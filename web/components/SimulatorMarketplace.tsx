@@ -5,6 +5,7 @@ import { useKeranjang } from "./KeranjangProvider";
 import BalikLayar, { type Langkah, type StatusLangkah } from "./BalikLayar";
 import { namaPendek, rupiah } from "@/lib/format";
 import InfoModeOnline from "./InfoModeOnline";
+import { MESIN_VERCEL, NAMA_MESIN } from "@/lib/mesin";
 
 type Platform = "shopee" | "tiktok";
 
@@ -14,6 +15,9 @@ type OrderSimulasi = {
   status: string;
   nama: string;
   no_hp: string;
+  dibuat: number;
+  diubah: number;
+  username?: string;
   items: { sku: string; nama: string; qty: number; harga: number }[];
 };
 
@@ -59,8 +63,8 @@ const LABEL_PLATFORM: Record<Platform, { nama: string; kelas: string }> = {
 function langkahMarketplace(h: HasilSimulasi): Langkah[] {
   const dasar = [
     { id: "mp", judul: "Marketplace", isi: "Kirim notifikasi singkat: order X → status Y" },
-    { id: "wh", judul: "Webhook n8n", isi: "Workflow 04 mengenali platform & status" },
-    { id: "api", judul: "Ambil detail", isi: "n8n memanggil API detail order marketplace" },
+    { id: "wh", judul: MESIN_VERCEL ? "Penerima notifikasi" : "Webhook n8n", isi: "Workflow 04 mengenali platform & status" },
+    { id: "api", judul: "Ambil detail", isi: `${NAMA_MESIN} memanggil API detail order marketplace` },
     { id: "tr", judul: "Terjemahkan", isi: "Format Shopee/TikTok → format Glowra" },
     { id: "val", judul: "Gerbang 03", isi: "Validasi + rapikan (workflow 03)" },
     { id: "gs", judul: "Google Sheets", isi: "Upsert baris, status pesanan ikut diperbarui" },
@@ -86,7 +90,7 @@ const JUDUL: Record<string, { judul: string; warna: string }> = {
   ditolak_gerbang: { judul: "Order ditolak gerbang (data tidak valid)", warna: "border-amber-300 bg-amber-50 text-amber-900" },
   gagal_ambil_detail: { judul: "Gagal mengambil detail order dari API marketplace", warna: "border-mawar/40 bg-blush-muda text-anggur-tua" },
   gagal_simpan: { judul: "Gagal menulis ke Google Sheets (marketplace akan mengirim ulang)", warna: "border-mawar/40 bg-blush-muda text-anggur-tua" },
-  tidak_terhubung: { judul: "Simulator tidak bisa menghubungi n8n", warna: "border-mawar/40 bg-blush-muda text-anggur-tua" },
+  tidak_terhubung: { judul: `Simulator tidak bisa menghubungi ${NAMA_MESIN}`, warna: "border-mawar/40 bg-blush-muda text-anggur-tua" },
 };
 
 export default function SimulatorMarketplace() {
@@ -102,10 +106,22 @@ export default function SimulatorMarketplace() {
   const [hasil, setHasil] = useState<HasilSimulasi | null>(null);
   const [galat, setGalat] = useState("");
 
+  // Gabungkan daftar dari server dengan yang sudah ada di layar (versi terbaru menang). Di Vercel,
+  // "server" yang menjawab bisa berganti-ganti dan tidak selalu ingat semua order simulasi.
+  const gabungOrder = (baru: OrderSimulasi[]) =>
+    setOrders((lama) => {
+      const peta = new Map(lama.map((o) => [`${o.platform}:${o.id}`, o]));
+      for (const o of baru) {
+        const k = `${o.platform}:${o.id}`;
+        const ada = peta.get(k);
+        if (!ada || o.diubah >= ada.diubah) peta.set(k, o);
+      }
+      return [...peta.values()].sort((a, b) => b.dibuat - a.dibuat);
+    });
   const muatOrder = () =>
     fetch("/api/simulator", { cache: "no-store" })
       .then((r) => r.json())
-      .then((d) => setOrders(d.orders ?? []))
+      .then((d) => gabungOrder(d.orders ?? []))
       .catch(() => {});
   useEffect(() => {
     muatOrder();
@@ -133,6 +149,8 @@ export default function SimulatorMarketplace() {
         body: JSON.stringify(payload),
       });
       const h: HasilSimulasi = await res.json();
+      const orderBalasan = (h as { order?: OrderSimulasi }).order;
+      if (orderBalasan) gabungOrder([orderBalasan]);
       if (h.hasil === "salah_input") {
         setGalat(h.pesan ?? "Input tidak valid");
       } else {
@@ -159,7 +177,7 @@ export default function SimulatorMarketplace() {
       <h1 className="mt-1 font-judul text-4xl font-semibold text-anggur">Simulator Marketplace</h1>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-tinta-lembut">
         Halaman ini berpura-pura menjadi <b>Shopee</b> atau <b>TikTok Shop</b>. Saat order dibuat atau statusnya diubah, simulator mengirim
-        <b> notifikasi</b> ke n8n (workflow 04), persis seperti marketplace sungguhan. n8n lalu mengambil detail order, menerjemahkannya,
+        <b> notifikasi</b> ke {NAMA_MESIN} (workflow 04), persis seperti marketplace sungguhan. Robot lalu mengambil detail order, menerjemahkannya,
         dan mencatatnya ke Google Sheets lewat gerbang yang sama dengan toko.
       </p>
 
@@ -277,7 +295,7 @@ export default function SimulatorMarketplace() {
                         ))}
                       </select>
                       <button
-                        onClick={() => kirim({ aksi: "status", platform: o.platform, order_id: o.id, status: pilihan }, k)}
+                        onClick={() => kirim({ aksi: "status", platform: o.platform, order_id: o.id, status: pilihan, order: o }, k)}
                         disabled={mengirim !== null}
                         className="tombol-utama shrink-0 !px-4 !py-1.5 !text-xs"
                       >
@@ -322,7 +340,7 @@ export default function SimulatorMarketplace() {
             diterima={hasil.diterima}
             webhook_url={hasil.webhook_url}
             labelKirim="Notifikasi dari marketplace"
-            labelTerima="Balasan n8n (workflow 04)"
+            labelTerima={`Balasan ${NAMA_MESIN} (workflow 04)`}
           />
         </div>
       )}

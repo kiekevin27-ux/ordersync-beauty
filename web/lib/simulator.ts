@@ -113,6 +113,31 @@ export function buatOrder(input: {
   return o;
 }
 
+/**
+ * Masukkan lagi order yang dikirim balik oleh browser kalau server ini belum mengenalnya
+ * (Vercel bisa menjalankan beberapa "server" sekaligus dan ingatannya tidak berbagi).
+ * Harga & nama produk diambil ulang dari master produk, bukan dari browser.
+ */
+export function pulihkanOrder(x: unknown) {
+  const o = x as Partial<OrderSimulasi> | null;
+  if (!o || (o.platform !== "shopee" && o.platform !== "tiktok") || typeof o.id !== "string" || !/^[A-Z0-9]{6,24}$/.test(o.id)) return;
+  if (store.has(kunci(o.platform, o.id)) || !Array.isArray(o.items)) return;
+  const items = [];
+  for (const it of o.items) {
+    const p = cariProduk(String(it?.sku ?? ""));
+    const qty = Math.floor(Number(it?.qty));
+    if (!p || !(qty >= 1 && qty <= 20)) return;
+    items.push({ sku: p.sku, nama: p.nama, qty, harga: p.harga });
+  }
+  if (!items.length) return;
+  const detik = (v: unknown) => (Number.isFinite(Number(v)) ? Math.floor(Number(v)) : Math.floor(Date.now() / 1000));
+  store.set(kunci(o.platform, o.id), {
+    platform: o.platform, id: o.id, status: String(o.status ?? ""), dibuat: detik(o.dibuat), diubah: detik(o.diubah),
+    nama: String(o.nama ?? "").slice(0, 80), username: String(o.username ?? "").slice(0, 80),
+    no_hp: String(o.no_hp ?? "").slice(0, 30), items,
+  });
+}
+
 export function ubahStatus(p: Platform, id: string, status: string): OrderSimulasi | string {
   const o = store.get(kunci(p, id));
   if (!o) return "Order simulasi tidak ditemukan (mungkin server toko sempat dimatikan)";

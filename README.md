@@ -55,6 +55,7 @@ Fondasi data & otomasi dalam 10 lapis:
 | **8. Import file export** | Seller taruh file export Shopee/TikTok di folder **Google Drive** → n8n membersihkan (dobel, SKU typo, status, tanggal) → ratusan order tercatat dalam 1 kali tulis + ringkasan di tab `Log_Import`. **Tanpa izin API** | [`n8n/05_…`](n8n/05_import_export_drive.json) · [`docs/08`](docs/08-import-export-drive.md) |
 | **9. Stok otomatis + notifikasi** | Tab `Stok_Live` menghitung stok dari semua order (order baru sudah **memesan** stok supaya tidak oversell). Begitu produk menyentuh batas minimum, pemilik dapat **pesan Telegram**, tanpa spam (hanya saat status berubah) | [`n8n/06_…`](n8n/06_notifikasi_stok_telegram.json) · [`docs/09`](docs/09-stok-dan-notifikasi.md) |
 | **10. Dashboard pemilik** | Halaman `/dashboard`: omzet, order, channel, status, produk terlaris, stok, order terbaru, langsung dari Google Sheet. Bisa dibuka dari HP, siap online di Vercel | [`web/app/dashboard`](web/app/dashboard/page.tsx) · [`docs/10`](docs/10-dashboard.md) · [`docs/11`](docs/11-deploy-vercel.md) |
+| **11. Jalan 24 jam online + bot Telegram** | Logika workflow 03/04/06 juga berjalan di **Vercel**, jadi demo online benar-benar mencatat order tanpa laptop menyala. Bot **@AMBAPRIMEBOT** bisa diajak chat: `/ringkasan`, `/hariini`, `/stok`, `/restock`, `/order …`, dan mengirim ringkasan stok tiap pagi | [`web/lib/gerbang.ts`](web/lib/gerbang.ts) · [`web/lib/bot.ts`](web/lib/bot.ts) · [`docs/13`](docs/13-otomasi-online-dan-bot-telegram.md) |
 
 ## 3. Arsitektur
 
@@ -112,7 +113,7 @@ flowchart LR
     class R400,R500 bad;
 ```
 
-Keputusan teknologi dan alasannya dicatat di [`ADR-001`](docs/adr/ADR-001-stack-fondasi.md) (stack fondasi) dan [`ADR-002`](docs/adr/ADR-002-google-sheets-service-account.md) (tulis ke Google Sheets).
+Keputusan teknologi dan alasannya dicatat di [`ADR-001`](docs/adr/ADR-001-stack-fondasi.md) (stack fondasi) [`ADR-002`](docs/adr/ADR-002-google-sheets-service-account.md) (tulis ke Google Sheets), dan [`ADR-003`](docs/adr/ADR-003-mesin-otomasi-di-vercel.md) (mesin otomasi di Vercel).
 
 ## 4. Hasil (dari data dummy, periode 12 Agu s.d. 11 Nov 2026)
 
@@ -232,6 +233,7 @@ ordersync-beauty/
 └── docs/
     ├── adr/ADR-001-stack-fondasi.md
     ├── adr/ADR-002-google-sheets-service-account.md
+    ├── adr/ADR-003-mesin-otomasi-di-vercel.md
     ├── 01-peta-alur-bisnis.md
     ├── 02-kamus-data.md
     ├── 03-panduan-google-sheets.md
@@ -244,6 +246,7 @@ ordersync-beauty/
     ├── 10-dashboard.md
     ├── 11-deploy-vercel.md
     ├── 12-paket-jasa.md
+    ├── 13-otomasi-online-dan-bot-telegram.md
     └── img/                        ← screenshot
 ```
 

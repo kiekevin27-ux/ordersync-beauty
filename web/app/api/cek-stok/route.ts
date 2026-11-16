@@ -1,10 +1,29 @@
 import { NextResponse } from "next/server";
+import { sheetsTersambung } from "@/lib/sheets";
+import { cekStok } from "@/lib/stok";
 
-/** POST /api/cek-stok → webhook n8n workflow 06 dengan { paksa: true } (kirim ringkasan ke Telegram). */
+/**
+ * POST /api/cek-stok → kirim ringkasan stok ke Telegram ({ paksa: true }).
+ * Mode n8n: webhook workflow 06. Mode Vercel: pemantau stok bawaan (lib/stok.ts).
+ */
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 export async function POST() {
   const url = process.env.N8N_CEK_STOK_URL;
+  if (!url && sheetsTersambung()) {
+    try {
+      const j = await cekStok({ paksa: true });
+      return NextResponse.json({
+        pesan: j.notifikasi_dikirim
+          ? `Terkirim ke Telegram ✓ (${j.perlu_perhatian.length} produk perlu perhatian)`
+          : `Dicek, tapi Telegram gagal: ${j.galat_telegram ?? "cek token bot"}`,
+        hasil: j,
+      });
+    } catch (e) {
+      return NextResponse.json({ pesan: `Gagal membaca stok: ${e instanceof Error ? e.message : e}` }, { status: 502 });
+    }
+  }
   if (!url) return NextResponse.json({ pesan: "N8N_CEK_STOK_URL belum diisi (mode demo online)." }, { status: 503 });
   try {
     const r = await fetch(url, {

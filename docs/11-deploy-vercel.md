@@ -8,10 +8,11 @@ Tujuan: toko demo + dashboard punya **link publik** (misalnya `ordersync-glowra.
 |---|---|---|
 | Beranda, katalog, keranjang | ✅ | Penuh |
 | **Dashboard** (`/dashboard`) | ✅ | Membaca Google Sheet asli. Kalau n8n di laptop menyala, data baru ikut tampil |
-| Checkout & simulator | ⚠️ Mode tampilan | Ada pemberitahuan *"belum tersambung ke n8n"*. Order tidak tercatat |
-| n8n (workflow 03–06) | ❌ Masih di laptop | Butuh hosting n8n (n8n Cloud / server). Diputuskan nanti saat ada klien |
+| Checkout & simulator | ✅ | Sejak 2026-11-16 logika workflow 03/04 berjalan di Vercel, lihat [docs/13](13-otomasi-online-dan-bot-telegram.md) |
+| Stok → Telegram + bot chat | ✅ | Logika workflow 06 + bot `/ringkasan`, `/stok`, dll. di Vercel |
+| n8n (workflow 03–06) | 💻 Laptop | Tetap utuh untuk belajar & portofolio. Workflow 05 (import Drive) masih hanya di sini |
 
-Begitu n8n online, cukup isi alamat webhook-nya di Environment Variables Vercel dan semua fitur aktif, tanpa ubah kode.
+Kalau suatu saat n8n di-hosting online, isi alamat webhook-nya (`N8N_*_URL`) di Environment Variables Vercel. Website akan otomatis memakai n8n lagi.
 
 ## Langkah deploy (±10 menit, sekali saja)
 

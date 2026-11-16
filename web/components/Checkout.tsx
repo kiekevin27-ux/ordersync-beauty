@@ -7,6 +7,7 @@ import PengaturQty from "./PengaturQty";
 import VisualProduk from "./VisualProduk";
 import BalikLayar, { langkahCheckout } from "./BalikLayar";
 import InfoModeOnline from "./InfoModeOnline";
+import { MESIN_VERCEL, NAMA_MESIN } from "@/lib/mesin";
 import { namaPendek, rupiah } from "@/lib/format";
 import type { HasilCheckout, PermintaanCheckout } from "@/lib/tipe";
 
@@ -14,9 +15,9 @@ const SHEET_URL = process.env.NEXT_PUBLIC_SHEET_URL;
 
 const JUDUL: Record<HasilCheckout["hasil"], { judul: string; warna: string }> = {
   tersimpan: { judul: "Order tercatat di Google Sheets 🎉", warna: "border-emerald-300 bg-emerald-50 text-emerald-900" },
-  ditolak: { judul: "Order ditolak oleh n8n (400)", warna: "border-amber-300 bg-amber-50 text-amber-900" },
+  ditolak: { judul: `Order ditolak oleh ${NAMA_MESIN} (400)`, warna: "border-amber-300 bg-amber-50 text-amber-900" },
   gagal_simpan: { judul: "Order valid, tapi gagal ditulis ke Google Sheets (500)", warna: "border-mawar/40 bg-blush-muda text-anggur-tua" },
-  tidak_terhubung: { judul: "Website tidak bisa menghubungi n8n", warna: "border-mawar/40 bg-blush-muda text-anggur-tua" },
+  tidak_terhubung: { judul: `Website tidak bisa menghubungi ${NAMA_MESIN}`, warna: "border-mawar/40 bg-blush-muda text-anggur-tua" },
   salah_input: { judul: "Permintaan tidak valid", warna: "border-mawar/40 bg-blush-muda text-anggur-tua" },
 };
 
@@ -105,10 +106,10 @@ export default function Checkout() {
             id="hp" className="input mt-1.5" inputMode="tel" value={hp} onChange={(e) => setHp(e.target.value)}
             placeholder="mis. 0812-555-1234" required
           />
-          <p className="mt-1.5 text-xs text-tinta-lembut">Boleh ditulis 08…, +62…, pakai spasi atau strip. n8n yang merapikan.</p>
+          <p className="mt-1.5 text-xs text-tinta-lembut">Boleh ditulis 08…, +62…, pakai spasi atau strip. {NAMA_MESIN} yang merapikan.</p>
 
           <button type="submit" className="tombol-utama mt-6 w-full" disabled={mengirim || isi.length === 0}>
-            {mengirim ? "Mengirim ke n8n…" : isi.length === 0 ? "Keranjang kosong" : `Pesan sekarang · ${rupiah(total)}`}
+            {mengirim ? `Mengirim ke ${NAMA_MESIN}…` : isi.length === 0 ? "Keranjang kosong" : `Pesan sekarang · ${rupiah(total)}`}
           </button>
 
           <div className="mt-8 rounded-2xl border border-dashed border-blush-tua p-4">
@@ -170,8 +171,8 @@ export default function Checkout() {
             {hasil.hasil === "tersimpan" && b && (
               <dl className="mt-4 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
                 <div><dt className="opacity-70">No pesanan</dt><dd className="font-kode font-semibold">{b.no_pesanan}</dd></div>
-                <div><dt className="opacity-70">Nama (dirapikan n8n)</dt><dd className="font-semibold">{b.nama_pembeli}</dd></div>
-                <div><dt className="opacity-70">No HP (dirapikan n8n)</dt><dd className="font-kode font-semibold">{b.no_hp_normal}</dd></div>
+                <div><dt className="opacity-70">Nama (dirapikan {NAMA_MESIN})</dt><dd className="font-semibold">{b.nama_pembeli}</dd></div>
+                <div><dt className="opacity-70">No HP (dirapikan {NAMA_MESIN})</dt><dd className="font-kode font-semibold">{b.no_hp_normal}</dd></div>
                 <div><dt className="opacity-70">Total</dt><dd className="font-semibold">{typeof b.total === "number" ? rupiah(b.total) : "-"}</dd></div>
                 <div className="sm:col-span-2">
                   <dt className="opacity-70">Baris di sheet</dt>

@@ -2,11 +2,20 @@ import { NextResponse } from "next/server";
 import { cariProduk } from "@/lib/produk";
 import type { HasilCheckout, PermintaanCheckout } from "@/lib/tipe";
 import { pingCekStok } from "@/lib/cekStok";
+import { prosesOrder } from "@/lib/gerbang";
+import { sheetsTersambung } from "@/lib/sheets";
+
+export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 /**
  * POST /api/checkout
  *
- * Jembatan antara website dan n8n. Kenapa browser tidak langsung memanggil n8n?
+ * Jembatan antara website dan mesin otomasi:
+ *  - n8n workflow 03, kalau N8N_WEBHOOK_URL diisi (laptop), atau
+ *  - gerbang bawaan lib/gerbang.ts (Vercel, tanpa n8n) dengan aturan yang sama persis.
+ *
+ * Kenapa browser tidak langsung memanggil n8n?
  *  1. Harga diambil dari master produk DI SERVER, jadi pembeli tidak bisa mengakali harga.
  *  2. Alamat webhook n8n tidak terlihat publik.
  *  3. Tidak ada masalah CORS (browser dilarang memanggil domain lain sembarangan).
@@ -68,6 +77,19 @@ export async function POST(req: Request) {
   };
 
   const url = process.env.N8N_WEBHOOK_URL;
+  if (!url && sheetsTersambung()) {
+    // ---- Mode Vercel: gerbang order bawaan ----
+    const mulai = Date.now();
+    const g = await prosesOrder(payload);
+    const dasar = { http_status: g.http, dikirim: payload, diterima: g.balasan, webhook_url: "vercel: lib/gerbang.ts", durasi_ms: Date.now() - mulai };
+    const pesanGerbang = String(g.balasan.pesan ?? "");
+    if (g.http === 200) {
+      await pingCekStok();
+      return balas({ ...dasar, hasil: "tersimpan", pesan: pesanGerbang || "Order tercatat" });
+    }
+    if (g.http === 400) return balas({ ...dasar, hasil: "ditolak", pesan: pesanGerbang || "Data order ditolak" }, 400);
+    return balas({ ...dasar, hasil: "gagal_simpan", pesan: pesanGerbang }, 502);
+  }
   if (!url) {
     return balas({
       ...kosong, hasil: "tidak_terhubung", dikirim: payload,
@@ -97,7 +119,7 @@ export async function POST(req: Request) {
     const pesanN8n = typeof diterima?.pesan === "string" ? diterima.pesan : "";
 
     if (res.status === 200) {
-      pingCekStok();
+      await pingCekStok();
       return balas({ ...dasar, hasil: "tersimpan", pesan: pesanN8n || "Order tercatat" });
     }
     if (res.status === 400) return balas({ ...dasar, hasil: "ditolak", pesan: pesanN8n || "Data order ditolak" }, 400);
