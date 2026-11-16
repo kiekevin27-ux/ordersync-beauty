@@ -182,3 +182,26 @@ export async function upsertBaris(tab: string, baris: Record<string, unknown>[],
   }
   return { ditambah: tambah.length, diperbarui };
 }
+
+/** Hapus semua baris yang nilai `kolom`-nya diawali `awalan` (dipakai halaman Uji Stok). */
+export async function hapusBarisAwalan(tab: string, kolom: string, awalan: string): Promise<number> {
+  const isi = await bacaMentah(tab);
+  const c = ((isi[0] ?? []) as unknown[]).map(String).indexOf(kolom);
+  if (c < 0 || !awalan) return 0;
+  const nomor = isi
+    .map((r, i) => ({ v: String((r as unknown[])[c] ?? ""), i }))
+    .filter((x) => x.i > 0 && x.v.startsWith(awalan))
+    .map((x) => x.i)
+    .sort((a, b) => b - a); // dari bawah ke atas, supaya nomor baris di atasnya tidak bergeser
+  if (!nomor.length) return 0;
+  const meta = await panggil(`?fields=sheets.properties`);
+  const sheetId = meta.sheets.find((s: { properties: { title: string } }) => s.properties.title === tab)?.properties.sheetId;
+  if (sheetId === undefined) return 0;
+  await panggil(`:batchUpdate`, {
+    method: "POST",
+    body: JSON.stringify({
+      requests: nomor.map((i) => ({ deleteDimension: { range: { sheetId, dimension: "ROWS", startIndex: i, endIndex: i + 1 } } })),
+    }),
+  });
+  return nomor.length;
+}

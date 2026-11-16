@@ -35,6 +35,16 @@ Kirim ke **@AMBAPRIMEBOT**:
 
 Hanya chat id di `TELEGRAM_CHAT_ID` yang bisa melihat data toko. Orang lain hanya diberi tahu bahwa bot ini privat.
 
+## Menguji bot: halaman Uji Stok
+
+Buka **`/uji-stok`** (link *Uji Bot* di menu atas, atau dari Dashboard):
+
+- **⚠️ Bikin menipis**: membuat 1 order uji supaya sisa stok tepat 1 di bawah minimum (status RESTOCK)
+- **⛔ Habiskan**: membuat 1 order uji supaya sisa stok 0 (status HABIS)
+- **↺ Reset**: menghapus semua order uji (no pesanan berawalan `UJI-`), stok kembali seperti semula, dan bot melapor "sudah aman lagi"
+
+Order uji lewat gerbang order yang sama dengan checkout, jadi yang diuji adalah alur sungguhan. Order asli tidak pernah disentuh oleh Reset.
+
 ## Pengaturan di Vercel (Environment Variables)
 
 Selain `GOOGLE_SHEET_ID` & `GOOGLE_SERVICE_ACCOUNT_JSON` yang sudah ada:

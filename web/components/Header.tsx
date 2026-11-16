@@ -25,6 +25,9 @@ export default function Header() {
           <Link href="/dashboard" className="rounded-full px-2 py-2 text-[13px] font-medium text-anggur hover:bg-blush-muda sm:px-3 sm:text-sm">
             Dashboard
           </Link>
+          <Link href="/uji-stok" className="hidden rounded-full px-3 py-2 text-sm font-medium text-anggur hover:bg-blush-muda md:block">
+            Uji Bot
+          </Link>
           <button
             onClick={() => bukaLaci(true)}
             className="relative ml-1 flex items-center gap-2 rounded-full bg-anggur px-3 py-2 text-sm font-semibold text-white hover:bg-anggur-tua sm:px-4"

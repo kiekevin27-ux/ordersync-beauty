@@ -6,6 +6,7 @@ import TombolCekStok from "@/components/dasbor/TombolCekStok";
 import { ambilDataDasbor, type DataDasbor } from "@/lib/dasbor";
 import { alasanBelumTersambung, sheetsTersambung } from "@/lib/sheets";
 import { rupiah } from "@/lib/format";
+import { telegramSiap } from "@/lib/telegram";
 
 export const metadata: Metadata = { title: "Dashboard Pemilik · Glowra Beauty (toko demo)" };
 export const dynamic = "force-dynamic";
@@ -77,7 +78,12 @@ export default async function HalamanDasbor() {
             Langsung dari Google Sheet (tab <span className="font-kode">Order_Masuk</span> & <span className="font-kode">Stok_Live</span>) · diperbarui {d.diperbarui} WIB
           </p>
         </div>
-        <TombolCekStok aktif={Boolean(process.env.N8N_CEK_STOK_URL)} />
+        <div className="flex flex-col items-start gap-2">
+          <TombolCekStok aktif={Boolean(process.env.N8N_CEK_STOK_URL) || telegramSiap()} />
+          <Link href="/uji-stok" className="text-xs font-semibold text-mawar underline-offset-2 hover:underline">
+            🧪 Uji stok & bot Telegram →
+          </Link>
+        </div>
       </div>
 
       {/* ---- Angka utama ---- */}
