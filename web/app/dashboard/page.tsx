@@ -3,6 +3,7 @@ import Link from "next/link";
 import KolomMingguan from "@/components/dasbor/KolomMingguan";
 import Batang from "@/components/dasbor/Batang";
 import TombolCekStok from "@/components/dasbor/TombolCekStok";
+import KelolaOrder from "@/components/dasbor/KelolaOrder";
 import { ambilDataDasbor, type DataDasbor } from "@/lib/dasbor";
 import { alasanBelumTersambung, sheetsTersambung } from "@/lib/sheets";
 import { rupiah } from "@/lib/format";
@@ -12,7 +13,7 @@ export const metadata: Metadata = { title: "Dashboard Pemilik · Glowra Beauty (
 export const dynamic = "force-dynamic";
 
 const NAMA_CHANNEL: Record<string, string> = { shopee: "Shopee", tiktok: "TikTok Shop", website: "Website", whatsapp: "WhatsApp" };
-const NAMA_STATUS: Record<string, string> = { baru: "Baru", diproses: "Diproses", dikirim: "Dikirim", selesai: "Selesai", batal: "Batal", retur: "Retur" };
+const NAMA_STATUS: Record<string, string> = { baru: "Baru", diproses: "Dikemas", dikirim: "Diantar", sampai: "Sampai", selesai: "Selesai", batal: "Batal", retur: "Retur" };
 
 // Warna status (tetap, tidak dipakai untuk seri) — selalu berpasangan ikon + label.
 const LENCANA: Record<string, { ikon: string; kelas: string }> = {
@@ -89,19 +90,27 @@ export default async function HalamanDasbor() {
       {/* ---- Angka utama ---- */}
       <div className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-5">
         <div className="col-span-2 lg:col-span-1">
-          <Ubin sorot judul="Omzet" nilai={rupiah(d.omzet)} catatan="Order selesai + dikirim" />
+          <Ubin sorot judul="Omzet" nilai={rupiah(d.omzet)} catatan="Order dikirim + sampai + selesai" />
         </div>
         <Ubin judul="Order masuk" nilai={d.jumlahOrder.toLocaleString("id-ID")} catatan="Semua channel, tanpa batal" />
-        <Ubin judul="Rata-rata per order" nilai={rupiah(d.rataRata)} catatan="Omzet ÷ order selesai/dikirim" />
+        <Ubin judul="Rata-rata per order" nilai={rupiah(d.rataRata)} catatan="Omzet ÷ order dikirim/sampai/selesai" />
         <Ubin judul="Perlu diproses" nilai={d.perluDiproses.toLocaleString("id-ID")} catatan="Order baru + diproses" />
         <Ubin judul="Produk perlu restock" nilai={`${d.perluRestock} / ${d.stok.length}`} catatan="Status RESTOCK atau HABIS" />
       </div>
 
+      <Kartu
+        judul="Kelola order website"
+        sub="Tandai order toko sendiri: dikemas → diantar (isi kurir & resi) → sampai → selesai. Setiap perubahan dikabari bot Telegram. Order Shopee/TikTok berubah otomatis dari marketplace."
+        className="mt-6"
+      >
+        <KelolaOrder orders={d.orderToko} />
+      </Kartu>
+
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
-        <Kartu judul="Omzet per minggu" sub="Order selesai + dikirim, menurut tanggal pesanan">
+        <Kartu judul="Omzet per minggu" sub="Order dikirim + sampai + selesai, menurut tanggal pesanan">
           <KolomMingguan data={d.mingguan} />
         </Kartu>
-        <Kartu judul="Omzet per channel" sub="Order selesai + dikirim">
+        <Kartu judul="Omzet per channel" sub="Order dikirim + sampai + selesai">
           <Batang
             data={d.perChannel.map((c) => ({ label: NAMA_CHANNEL[c.channel] ?? c.channel, sub: `${c.order} order`, nilai: c.omzet }))}
             format={(n) => rupiah(n)}
@@ -117,7 +126,7 @@ export default async function HalamanDasbor() {
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.6fr]">
-        <Kartu judul="5 produk terlaris" sub="Jumlah unit, order selesai + dikirim">
+        <Kartu judul="5 produk terlaris" sub="Jumlah unit, order dikirim + sampai + selesai">
           <Batang data={d.topProduk.map((p) => ({ label: p.nama, sub: p.sku, nilai: p.qty }))} format={(n) => `${n} pcs`} />
         </Kartu>
 
@@ -178,7 +187,10 @@ export default async function HalamanDasbor() {
                   <td className="py-2.5 pr-3 font-kode text-xs">{o.no_pesanan}</td>
                   <td className="py-2.5 pr-3">{NAMA_CHANNEL[o.channel] ?? o.channel}</td>
                   <td className="py-2.5 pr-3">{o.nama}</td>
-                  <td className="py-2.5 pr-3">{NAMA_STATUS[o.status_pesanan] ?? o.status_pesanan}</td>
+                  <td className="py-2.5 pr-3">
+                    {NAMA_STATUS[o.status_pesanan] ?? o.status_pesanan}
+                    {o.no_resi && <span className="block font-kode text-[11px] text-tinta-lembut">{o.kurir} · {o.no_resi}</span>}
+                  </td>
                   <td className="py-2.5 text-right tabular-nums">{o.total ? rupiah(o.total) : "-"}</td>
                 </tr>
               ))}
@@ -188,7 +200,7 @@ export default async function HalamanDasbor() {
       </Kartu>
 
       <p className="mt-6 text-xs text-tinta-lembut">
-        Definisi omzet sama dengan tab <span className="font-kode">Laba_per_Channel</span> di workbook: hanya order <b>selesai</b> dan <b>dikirim</b>. Data
+        Definisi omzet sama dengan tab <span className="font-kode">Laba_per_Channel</span> di workbook: hanya order <b>dikirim</b>, <b>sampai</b>, dan <b>selesai</b>. Data
         fiktif untuk demo.
       </p>
     </div>

@@ -14,6 +14,7 @@ Latar belakang keputusan: [ADR-003](adr/ADR-003-mesin-otomasi-di-vercel.md).
 | Simulator Shopee/TikTok (wf 04) | ✅ | ✅ `lib/marketplace.ts` |
 | Pemantau stok → Telegram (wf 06) | ✅ tiap 5 menit | ✅ setiap ada order + ringkasan **tiap pagi 08:00 WIB** |
 | Bot Telegram bisa diajak chat | ❌ | ✅ `lib/bot.ts` |
+| Pelacakan pesanan + kabar status ke Telegram | ❌ | ✅ `lib/lacak.ts` |
 | Import file export Drive (wf 05) | ✅ | ❌ (belum dipindah) |
 
 Website memilih mesinnya sendiri: kalau alamat `N8N_*_URL` diisi, n8n yang dipakai. Kalau kosong, mesin Vercel yang bekerja.
@@ -27,13 +28,36 @@ Kirim ke **@AMBAPRIMEBOT**:
 | `/ringkasan` | Omzet, jumlah order, rata-rata, per channel, produk terlaris |
 | `/hariini` | Order yang masuk hari ini |
 | `/terbaru` | 5 order terakhir |
-| `/order WEB-2026…` | Detail 1 order |
+| `/order WEB-2026…` (atau `/lacak`) | Lacak 1 order: status, kurir, no resi, perjalanan paket |
+| `/dikemas` | Order yang sedang dikemas |
+| `/diantar` | Order yang sedang diantar kurir |
 | `/stok` | Stok semua produk |
 | `/restock` | Produk yang perlu restock |
 | `/bantuan` | Daftar perintah |
 | `/id` | Chat id kamu (siapa pun boleh) |
 
 Hanya chat id di `TELEGRAM_CHAT_ID` yang bisa melihat data toko. Orang lain hanya diberi tahu bahwa bot ini privat.
+
+## Pelacakan pesanan
+
+Alur status semua channel:
+
+```
+🆕 baru → 📦 diproses (dikemas) → 🚚 dikirim (diantar) → 🏠 sampai → ✅ selesai
+                                                   (atau ❌ batal / ↩️ retur)
+```
+
+| Channel | Siapa yang mengubah status | Kurir & resi |
+|---|---|---|
+| Shopee | Marketplace (webhook). `TO_CONFIRM_RECEIVE` = sampai | Dari detail order (`package_list`) |
+| TikTok Shop | Marketplace (webhook). `DELIVERED` = sampai | Dari detail order (`shipping_provider`, `tracking_number`) |
+| Website / WhatsApp | Pemilik toko, lewat kartu **Kelola order website** di Dashboard | Dipilih saat menekan **🚚 Kirim**. Resi kosong = dibuatkan resi demo |
+
+Setiap kali status sebuah order berubah (atau ada order baru), bot mengirim kabar ke Telegram, misalnya *"Order WEB-… sedang diantar 🚚 · Kurir: JNE · Resi: …"*. Order uji (`UJI-…`) dan import batch tidak dikabari supaya tidak spam.
+
+Kolom `kurir` dan `no_resi` dibuat otomatis di ujung tab `Order_Masuk`. Status `sampai` ikut dihitung sebagai terjual di `Stok_Live` dan sebagai omzet di Dashboard, sama seperti `dikirim`.
+
+> Catatan: mesin n8n di laptop (wf 03/04) belum mengenal status `sampai`. Di sana paket yang sampai masih tercatat `dikirim`.
 
 ## Menguji bot: halaman Uji Stok
 

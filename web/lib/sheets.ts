@@ -158,11 +158,13 @@ export async function upsertBaris(tab: string, baris: Record<string, unknown>[],
   if (headerBaru.length !== header.length) data.push({ range: `'${tab}'!A1:${akhir}1`, values: [headerBaru] });
 
   const tambah: unknown[][] = [];
+  const sebelum: Record<string, unknown>[] = []; // isi lama baris yang diperbarui (untuk mendeteksi perubahan status)
   let diperbarui = 0;
   for (const b of baris) {
     const no = posisi.get(String(b[kunci]));
     if (no) {
       const lama = [...((isi[no - 1] ?? []) as unknown[])];
+      sebelum.push(Object.fromEntries(header.map((h, c) => [h, lama[c] ?? ""])));
       const r = headerBaru.map((h, c) => (h in b ? b[h] : lama[c] ?? ""));
       data.push({ range: `'${tab}'!A${no}:${akhir}${no}`, values: [r] });
       diperbarui++;
@@ -180,7 +182,7 @@ export async function upsertBaris(tab: string, baris: Record<string, unknown>[],
       body: JSON.stringify({ values: tambah }),
     });
   }
-  return { ditambah: tambah.length, diperbarui };
+  return { ditambah: tambah.length, diperbarui, sebelum };
 }
 
 /** Hapus semua baris yang nilai `kolom`-nya diawali `awalan` (dipakai halaman Uji Stok). */

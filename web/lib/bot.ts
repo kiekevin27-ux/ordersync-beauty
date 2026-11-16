@@ -7,6 +7,7 @@
  */
 import { ambilDataDasbor } from "./dasbor";
 import { rupiah } from "./format";
+import { LABEL_CHANNEL, LABEL_STATUS } from "./lacak";
 import { bacaTab } from "./sheets";
 import { barisStok, bacaStok, cekStok, jamWib } from "./stok";
 import { daftarPemilik } from "./telegram";
@@ -16,16 +17,14 @@ export const PERINTAH = [
   { command: "ringkasan", description: "Omzet, jumlah order & produk terlaris" },
   { command: "hariini", description: "Order yang masuk hari ini" },
   { command: "terbaru", description: "5 order terakhir" },
-  { command: "order", description: "Detail 1 order, contoh: /order WEB-20261116-..." },
+  { command: "order", description: "Lacak 1 order (status, kurir, resi), contoh: /order WEB-2026..." },
+  { command: "dikemas", description: "Order yang sedang dikemas" },
+  { command: "diantar", description: "Order yang sedang diantar kurir" },
   { command: "stok", description: "Stok semua produk" },
   { command: "restock", description: "Produk yang perlu restock" },
   { command: "bantuan", description: "Daftar perintah" },
 ];
 
-const LABEL_STATUS: Record<string, string> = {
-  baru: "🆕 baru", diproses: "📦 diproses", dikirim: "🚚 dikirim", selesai: "✅ selesai", batal: "❌ batal", retur: "↩️ retur",
-};
-const LABEL_CHANNEL: Record<string, string> = { shopee: "Shopee", tiktok: "TikTok", website: "Website", whatsapp: "WhatsApp" };
 const angka = (v: unknown) => (typeof v === "number" ? v : Number(String(v ?? "").replace(/[^\d.-]/g, "")) || 0);
 const hariIniWib = () => new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
 
@@ -36,7 +35,7 @@ function bantuan(nama: string) {
     "",
     ...PERINTAH.map((p) => `/${p.command} — ${p.description}`),
     "",
-    "Peringatan stok menipis akan saya kirim otomatis setiap ada order baru.",
+    "Saya juga mengabari otomatis setiap ada order baru, order berubah status (dikemas, diantar, sampai, selesai), dan stok menipis.",
   ].join("\n");
 }
 
@@ -45,20 +44,31 @@ type BarisOrder = Record<string, unknown>;
 /** Kelompokkan baris Order_Masuk (1 baris = 1 produk) per no pesanan. */
 async function semuaOrder() {
   const { Order_Masuk } = await bacaTab(["Order_Masuk"]);
-  const peta = new Map<string, { no: string; channel: string; nama: string; tanggal: string; status: string; total: number; items: BarisOrder[] }>();
+  const peta = new Map<string, {
+    no: string; channel: string; nama: string; tanggal: string; status: string; total: number; kurir: string; resi: string; items: BarisOrder[];
+  }>();
   for (const r of Order_Masuk) {
     const no = String(r.no_pesanan ?? "");
     if (!no) continue;
     let o = peta.get(no);
     if (!o) {
       o = { no, channel: String(r.channel), nama: String(r.nama_pembeli), tanggal: String(r.tanggal_pesanan || r.diterima_pada_wib || "").slice(0, 16),
-        status: String(r.status_pesanan || "baru").toLowerCase(), total: 0, items: [] };
+        status: String(r.status_pesanan || "baru").toLowerCase(), total: 0, kurir: String(r.kurir ?? ""), resi: String(r.no_resi ?? ""), items: [] };
       peta.set(no, o);
     }
     o.total += angka(r.subtotal);
     o.items.push(r);
   }
   return [...peta.values()];
+}
+
+/** Garis waktu sederhana: ✔ untuk tahap yang sudah dilewati. */
+function perjalanan(status: string): string {
+  if (status === "batal" || status === "retur") return `Perjalanan: ${LABEL_STATUS[status]}`;
+  const tahap = ["baru", "diproses", "dikirim", "sampai", "selesai"];
+  const nama = ["Order masuk", "Dikemas", "Diantar", "Sampai", "Selesai"];
+  const posisi = Math.max(0, tahap.indexOf(status));
+  return ["Perjalanan:", ...nama.map((n, i) => `${i <= posisi ? "✔" : "○"} ${n}`)].join("\n");
 }
 
 const ringkasOrder = (o: { no: string; channel: string; nama: string; tanggal: string; status: string; total: number }) =>
@@ -76,7 +86,7 @@ async function jawab(perintah: string, argumen: string, nama: string): Promise<s
       return [
         "📊 Ringkasan Glowra Beauty",
         "",
-        `Omzet (dikirim + selesai): ${rupiah(d.omzet)}`,
+        `Omzet (dikirim + sampai + selesai): ${rupiah(d.omzet)}`,
         `Jumlah order (tanpa batal): ${d.jumlahOrder}`,
         `Rata-rata per order: ${rupiah(d.rataRata)}`,
         `Perlu diproses: ${d.perluDiproses} order`,
@@ -112,6 +122,21 @@ async function jawab(perintah: string, argumen: string, nama: string): Promise<s
       return ["🧾 5 order terakhir", "", ...list.map(ringkasOrder)].join("\n");
     }
 
+    case "dikemas":
+    case "diantar": {
+      const st = perintah === "dikemas" ? "diproses" : "dikirim";
+      const list = (await semuaOrder()).filter((o) => o.status === st).sort((a, b) => (a.tanggal < b.tanggal ? 1 : -1));
+      const judul = perintah === "dikemas" ? "📦 Sedang dikemas" : "🚚 Sedang diantar";
+      if (!list.length) return `${judul}: tidak ada order saat ini.`;
+      return [
+        `${judul} (${list.length} order)`,
+        "",
+        ...list.slice(0, 15).map((o) => ringkasOrder(o) + (o.resi ? `\n   ${o.kurir} · resi ${o.resi}` : "")),
+        list.length > 15 ? `\n…dan ${list.length - 15} order lainnya` : "",
+      ].join("\n").trim();
+    }
+
+    case "lacak":
     case "order": {
       const no = argumen.trim();
       if (!no) return "Tulis no pesanannya juga ya, contoh:\n/order WEB-20261116-140509-K7Q";
@@ -123,6 +148,9 @@ async function jawab(perintah: string, argumen: string, nama: string): Promise<s
         `Pembeli: ${o.nama}`,
         `Tanggal: ${o.tanggal}`,
         `Status: ${LABEL_STATUS[o.status] ?? o.status}`,
+        ...(o.kurir || o.resi ? [`Kurir: ${o.kurir || "-"}`, `No resi: ${o.resi || "-"}`] : []),
+        "",
+        perjalanan(o.status),
         "",
         ...o.items.map((r) => `• ${r.sku} × ${r.qty} = ${rupiah(angka(r.subtotal))}`),
         "",

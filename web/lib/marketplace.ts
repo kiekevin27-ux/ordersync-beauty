@@ -12,12 +12,12 @@ type Platform = "shopee" | "tiktok";
 
 const STATUS_SHOPEE: Record<string, string | null> = {
   UNPAID: null, READY_TO_SHIP: "diproses", PROCESSED: "diproses", RETRY_SHIP: "diproses",
-  SHIPPED: "dikirim", TO_CONFIRM_RECEIVE: "dikirim", COMPLETED: "selesai",
+  SHIPPED: "dikirim", TO_CONFIRM_RECEIVE: "sampai", COMPLETED: "selesai",
   IN_CANCEL: "batal", CANCELLED: "batal", TO_RETURN: "retur",
 };
 const STATUS_TIKTOK: Record<string, string | null> = {
   UNPAID: null, ON_HOLD: null, AWAITING_SHIPMENT: "diproses", AWAITING_COLLECTION: "diproses",
-  PARTIALLY_SHIPPING: "diproses", IN_TRANSIT: "dikirim", DELIVERED: "dikirim", COMPLETED: "selesai",
+  PARTIALLY_SHIPPING: "diproses", IN_TRANSIT: "dikirim", DELIVERED: "sampai", COMPLETED: "selesai",
   CANCELLED: "batal",
 };
 
@@ -67,10 +67,12 @@ export function terjemahkan(n: Notifikasi, body: Obj): Obj | null {
     const o = ((body.response as Obj)?.order_list as Obj[] | undefined)?.[0];
     if (!o) return null;
     const alamat = (o.recipient_address ?? {}) as Obj;
+    const paket = ((o.package_list ?? []) as Obj[])[0] ?? {};
     return {
       channel: "shopee", no_pesanan: o.order_sn,
       nama_pembeli: alamat.name || o.buyer_username || "", no_hp: alamat.phone || "",
       status_pesanan: n.status_pesanan, tanggal_pesanan: wib(o.create_time),
+      kurir: paket.shipping_carrier || o.shipping_carrier || "", no_resi: paket.tracking_number || "",
       items: gabung(((o.item_list ?? []) as Obj[]).map((it) => ({
         sku: String(it.model_sku || it.item_sku), qty: Number(it.model_quantity_purchased),
         harga_satuan: Math.round(Number(it.model_discounted_price)),
@@ -84,6 +86,7 @@ export function terjemahkan(n: Notifikasi, body: Obj): Obj | null {
     channel: "tiktok", no_pesanan: o.id,
     nama_pembeli: alamat.name || "", no_hp: alamat.phone_number || "",
     status_pesanan: n.status_pesanan, tanggal_pesanan: wib(o.create_time),
+    kurir: o.shipping_provider || "", no_resi: o.tracking_number || "",
     items: gabung(((o.line_items ?? []) as Obj[]).map((li) => ({
       sku: String(li.seller_sku), qty: 1, harga_satuan: Math.round(Number(li.sale_price)),
     }))),

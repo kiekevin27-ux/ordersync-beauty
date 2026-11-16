@@ -300,7 +300,7 @@ def tab_stok_live(wb, n_produk):
         ws.cell(r, 2, f"=Master_Produk!B{r}")
         ws.cell(r, 3, f"=VLOOKUP($A{r},Master_Produk!$A:$G,6,FALSE)")
         ws.cell(r, 4, f"={jumlah(r, 'baru')}+{jumlah(r, 'diproses')}")
-        ws.cell(r, 5, f"={jumlah(r, 'dikirim')}+{jumlah(r, 'selesai')}")
+        ws.cell(r, 5, f"={jumlah(r, 'dikirim')}+{jumlah(r, 'sampai')}+{jumlah(r, 'selesai')}")
         ws.cell(r, 6, f"=C{r}-D{r}-E{r}")
         ws.cell(r, 7, f"=VLOOKUP($A{r},Master_Produk!$A:$G,7,FALSE)")
         ws.cell(r, 8, f'=IF(F{r}<=0,"HABIS",IF(F{r}<G{r},"RESTOCK","AMAN"))')

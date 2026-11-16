@@ -7,12 +7,13 @@
  * "Rangkum Hasil" di scripts/build_workflow_03.py, supaya hasil di sheet tidak berbeda apa pun
  * mesinnya (n8n di laptop atau Vercel).
  */
+import { kabariPerubahanStatus } from "./lacak";
 import { upsertBaris } from "./sheets";
 
 const WAJIB = ["channel", "no_pesanan", "nama_pembeli"];
 const CHANNEL_DIKENAL = ["shopee", "tiktok", "whatsapp", "website"];
 const CHANNEL_MARKETPLACE = ["shopee", "tiktok"]; // API marketplace sering menyamarkan no HP
-const STATUS_PESANAN = ["baru", "diproses", "dikirim", "selesai", "batal", "retur"];
+const STATUS_PESANAN = ["baru", "diproses", "dikirim", "sampai", "selesai", "batal", "retur"];
 const POLA_SKU = /^GLW-[A-Z]{3}-\d{3}$/;
 const POLA_TANGGAL = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}(:\d{2})?)?$/;
 const MAKS_PRODUK = 30;
@@ -49,6 +50,10 @@ function cekOrder(body: Obj) {
   }
   if (!kosong(body.tanggal_pesanan) && !POLA_TANGGAL.test(String(body.tanggal_pesanan).trim())) {
     errors.push("Field 'tanggal_pesanan' harus berformat YYYY-MM-DD atau YYYY-MM-DD HH:mm");
+  }
+
+  for (const f of ["kurir", "no_resi"]) {
+    if (!kosong(body[f]) && String(body[f]).trim().length > 40) errors.push(`Field '${f}' maksimal 40 karakter`);
   }
 
   let items: Obj[] = [];
@@ -88,6 +93,8 @@ type Baris = {
   diterima_pada_wib: string; id_baris: string; channel: string; no_pesanan: string; sku: string; qty: number;
   harga_satuan: number | ""; subtotal: number | ""; nama_pembeli: string; no_hp_normal: string; no_hp_asli: string;
   status: string; catatan: string; status_pesanan: string; tanggal_pesanan: string;
+  // Opsional: hanya ditulis kalau dikirim, supaya resi yang sudah tercatat tidak terhapus oleh update status lain.
+  kurir?: string; no_resi?: string;
 };
 
 /** Rapikan order lalu pecah jadi 1 baris per produk (aturan sama dengan scripts/clean_merge.py). */
@@ -120,6 +127,10 @@ function normalisasi(o: Obj & { items: Obj[] }, wib: string): Baris[] {
   const statusPesanan = kosong(o.status_pesanan) ? "baru" : String(o.status_pesanan).trim().toLowerCase();
   const tanggalPesanan = kosong(o.tanggal_pesanan) ? wib.slice(0, 16) : String(o.tanggal_pesanan).trim();
 
+  const lacak: Pick<Baris, "kurir" | "no_resi"> = {};
+  if (!kosong(o.kurir)) lacak.kurir = String(o.kurir).trim();
+  if (!kosong(o.no_resi)) lacak.no_resi = String(o.no_resi).trim();
+
   return o.items.map((it) => {
     const sku = String(it.sku).trim().toUpperCase();
     const qty = Number(it.qty);
@@ -140,6 +151,7 @@ function normalisasi(o: Obj & { items: Obj[] }, wib: string): Baris[] {
       catatan,
       status_pesanan: statusPesanan,
       tanggal_pesanan: tanggalPesanan,
+      ...lacak,
     };
   });
 }
@@ -178,8 +190,9 @@ export async function prosesOrder(body: Obj): Promise<HasilGerbang> {
   const wib = waktuWib();
   const baris = valid.flatMap((o) => normalisasi(o, wib));
   let detail: string | null = null;
+  let sebelum: Record<string, unknown>[] = [];
   try {
-    await upsertBaris("Order_Masuk", baris, "id_baris");
+    sebelum = (await upsertBaris("Order_Masuk", baris, "id_baris")).sebelum;
   } catch (e) {
     detail = e instanceof Error ? e.message : String(e);
   }
@@ -200,6 +213,8 @@ export async function prosesOrder(body: Obj): Promise<HasilGerbang> {
   }
 
   const r = baris[0];
+  // Pelacakan: kabari pemilik toko di Telegram kalau ini order baru atau statusnya berubah.
+  const notifikasiStatus = tersimpan ? await kabariPerubahanStatus(baris, sebelum).catch((e) => `gagal_kirim: ${e}`) : null;
   const semuaBerharga = baris.every((b) => b.subtotal !== "");
   let status = "diterima";
   let pesan = "Order diterima dan sudah tercatat di Google Sheets";
@@ -212,6 +227,7 @@ export async function prosesOrder(body: Obj): Promise<HasilGerbang> {
     status, pesan,
     no_pesanan: r.no_pesanan, channel: r.channel, nama_pembeli: r.nama_pembeli, no_hp_normal: r.no_hp_normal,
     status_pesanan: r.status_pesanan, tanggal_pesanan: r.tanggal_pesanan,
+    kurir: r.kurir ?? null, no_resi: r.no_resi ?? null, notifikasi_status: notifikasiStatus,
     jumlah_produk: baris.length,
     total_qty: baris.reduce((s, b) => s + b.qty, 0),
     total: semuaBerharga ? baris.reduce((s, b) => s + (b.subtotal as number), 0) : null,

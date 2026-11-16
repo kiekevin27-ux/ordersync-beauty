@@ -21,6 +21,7 @@ export const STATUS_PLATFORM: Record<Platform, { kode: string; label: string }[]
     { kode: "UNPAID", label: "Belum bayar" },
     { kode: "READY_TO_SHIP", label: "Perlu dikirim" },
     { kode: "SHIPPED", label: "Sedang dikirim" },
+    { kode: "TO_CONFIRM_RECEIVE", label: "Sudah sampai" },
     { kode: "COMPLETED", label: "Selesai" },
     { kode: "CANCELLED", label: "Batal" },
     { kode: "TO_RETURN", label: "Pengembalian" },
@@ -29,6 +30,7 @@ export const STATUS_PLATFORM: Record<Platform, { kode: string; label: string }[]
     { kode: "UNPAID", label: "Unpaid" },
     { kode: "AWAITING_SHIPMENT", label: "Awaiting shipment" },
     { kode: "IN_TRANSIT", label: "In transit" },
+    { kode: "DELIVERED", label: "Delivered" },
     { kode: "COMPLETED", label: "Completed" },
     { kode: "CANCELLED", label: "Cancelled" },
   ],
@@ -44,7 +46,16 @@ export type OrderSimulasi = {
   username: string;
   no_hp: string; // seperti yang akan dikirim API (bisa disamarkan)
   items: { sku: string; nama: string; qty: number; harga: number }[];
+  kurir?: string; // diisi marketplace saat paket diserahkan ke kurir
+  resi?: string;
 };
+
+/** Kurir bawaan tiap marketplace di simulator + pola no resi demo. */
+const KURIR: Record<Platform, { nama: string; resi: () => string }> = {
+  shopee: { nama: "SPX Express", resi: () => "SPXID0" + acak(11, "0123456789") },
+  tiktok: { nama: "J&T Express", resi: () => "JX" + acak(10, "0123456789") },
+};
+const STATUS_DIKIRIM = new Set(["SHIPPED", "TO_CONFIRM_RECEIVE", "COMPLETED", "IN_TRANSIT", "DELIVERED"]);
 
 // Simpan di globalThis supaya semua route (simulator & API tiruan) memakai data yang sama.
 const g = globalThis as unknown as { __glowraSimulator?: Map<string, OrderSimulasi> };
@@ -135,6 +146,8 @@ export function pulihkanOrder(x: unknown) {
     platform: o.platform, id: o.id, status: String(o.status ?? ""), dibuat: detik(o.dibuat), diubah: detik(o.diubah),
     nama: String(o.nama ?? "").slice(0, 80), username: String(o.username ?? "").slice(0, 80),
     no_hp: String(o.no_hp ?? "").slice(0, 30), items,
+    kurir: o.kurir === KURIR[o.platform].nama ? o.kurir : undefined,
+    resi: typeof o.resi === "string" && /^[A-Z0-9]{8,20}$/.test(o.resi) ? o.resi : undefined,
   });
 }
 
@@ -144,6 +157,11 @@ export function ubahStatus(p: Platform, id: string, status: string): OrderSimula
   if (!STATUS_PLATFORM[p].some((s) => s.kode === status)) return `Status ${status} tidak dikenal`;
   o.status = status;
   o.diubah = Math.floor(Date.now() / 1000);
+  // Begitu paket diserahkan ke kurir, marketplace memberi no resi (sekali saja, tidak berubah lagi).
+  if (STATUS_DIKIRIM.has(status) && !o.resi) {
+    o.kurir = KURIR[p].nama;
+    o.resi = KURIR[p].resi();
+  }
   return o;
 }
 
@@ -175,6 +193,9 @@ export function detailShopee(ids: string[]) {
       currency: "IDR",
       buyer_username: o.username,
       recipient_address: { name: o.nama, phone: o.no_hp, full_address: "(alamat simulasi)" },
+      shipping_carrier: o.kurir ?? "",
+      // Shopee asli: no resi diambil lewat API logistics.get_tracking_number; di simulator ditaruh di package_list.
+      package_list: o.resi ? [{ package_number: `PKG${o.id}`, shipping_carrier: o.kurir, tracking_number: o.resi }] : [],
       item_list: o.items.map((it) => ({
         item_sku: it.sku,
         model_sku: "",
@@ -199,6 +220,8 @@ export function detailTiktok(ids: string[]) {
       create_time: o.dibuat,
       update_time: o.diubah,
       recipient_address: { name: o.nama, phone_number: o.no_hp, full_address: "(alamat simulasi)" },
+      shipping_provider: o.kurir ?? "",
+      tracking_number: o.resi ?? "",
       line_items: o.items.flatMap((it) =>
         Array.from({ length: it.qty }, (_, i) => ({
           id: `${o.id.slice(-6)}${it.sku.slice(-3)}${i}`,

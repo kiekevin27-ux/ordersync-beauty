@@ -4,12 +4,13 @@ import { bacaTab } from "./sheets";
 export type BarisStok = { sku: string; nama: string; tersedia: number; minimum: number; dipesan: number; terjual: number; status: string };
 export type OrderRingkas = {
   no_pesanan: string; channel: string; nama: string; tanggal: string; status_pesanan: string; total: number; produk: number;
+  kurir: string; no_resi: string;
 };
 export type DataDasbor = {
   diperbarui: string;
-  omzet: number;           // status selesai + dikirim (sama dengan Laba_per_Channel di workbook)
+  omzet: number;           // status dikirim + sampai + selesai (sama dengan Laba_per_Channel di workbook)
   jumlahOrder: number;     // semua order kecuali batal
-  rataRata: number;        // omzet / order (selesai + dikirim)
+  rataRata: number;        // omzet / order (dikirim + sampai + selesai)
   perluDiproses: number;   // order status baru + diproses
   perluRestock: number;
   mingguan: { minggu: string; label: string; omzet: number; order: number }[];
@@ -18,10 +19,12 @@ export type DataDasbor = {
   topProduk: { sku: string; nama: string; qty: number }[];
   stok: BarisStok[];
   terbaru: OrderRingkas[];
+  orderToko: OrderRingkas[]; // order website/WhatsApp yang belum selesai (statusnya diubah dari dashboard)
 };
 
-const STATUS_URUT = ["baru", "diproses", "dikirim", "selesai", "batal", "retur"];
-const MASUK_OMZET = new Set(["selesai", "dikirim"]);
+const STATUS_URUT = ["baru", "diproses", "dikirim", "sampai", "selesai", "batal", "retur"];
+// "sampai" = paket sudah diterima tapi pembeli belum konfirmasi; dulu tercatat sebagai "dikirim", jadi tetap dihitung.
+const MASUK_OMZET = new Set(["dikirim", "sampai", "selesai"]);
 const angka = (v: unknown) => (typeof v === "number" ? v : Number(String(v ?? "").replace(/[^\d.-]/g, "")) || 0);
 
 /** Senin dari minggu tanggal YYYY-MM-DD. */
@@ -48,7 +51,8 @@ export async function ambilDataDasbor(): Promise<DataDasbor> {
     const st = String(r.status_pesanan || "baru").toLowerCase();
     let o = order.get(no);
     if (!o) {
-      o = { no_pesanan: no, channel: String(r.channel), nama: String(r.nama_pembeli), tanggal, status_pesanan: st, total: 0, produk: 0, items: [] };
+      o = { no_pesanan: no, channel: String(r.channel), nama: String(r.nama_pembeli), tanggal, status_pesanan: st, total: 0, produk: 0,
+        kurir: String(r.kurir ?? ""), no_resi: String(r.no_resi ?? ""), items: [] };
       order.set(no, o);
     }
     o.total += angka(r.subtotal);
@@ -101,10 +105,14 @@ export async function ambilDataDasbor(): Promise<DataDasbor> {
     status: String(r.Status),
   }));
 
-  const terbaru = [...semua]
-    .sort((a, b) => (a.tanggal < b.tanggal ? 1 : -1))
-    .slice(0, 8)
-    .map(({ items: _items, ...o }) => o);
+  const urutBaru = [...semua].sort((a, b) => (a.tanggal < b.tanggal ? 1 : -1));
+  const ringkas = ({ items: _items, ...o }: O): OrderRingkas => o;
+  const terbaru = urutBaru.slice(0, 8).map(ringkas);
+  const orderToko = urutBaru
+    .filter((o) => (o.channel === "website" || o.channel === "whatsapp") && !o.no_pesanan.startsWith("UJI-"))
+    .filter((o) => !["selesai", "batal", "retur"].includes(o.status_pesanan))
+    .slice(0, 12)
+    .map(ringkas);
 
   return {
     diperbarui: new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 16).replace("T", " "),
@@ -119,5 +127,6 @@ export async function ambilDataDasbor(): Promise<DataDasbor> {
     topProduk,
     stok,
     terbaru,
+    orderToko,
   };
 }

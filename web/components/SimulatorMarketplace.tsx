@@ -18,6 +18,8 @@ type OrderSimulasi = {
   dibuat: number;
   diubah: number;
   username?: string;
+  kurir?: string;
+  resi?: string;
   items: { sku: string; nama: string; qty: number; harga: number }[];
 };
 
@@ -38,6 +40,7 @@ const STATUS: Record<Platform, { kode: string; label: string }[]> = {
     { kode: "UNPAID", label: "Belum bayar" },
     { kode: "READY_TO_SHIP", label: "Perlu dikirim" },
     { kode: "SHIPPED", label: "Sedang dikirim" },
+    { kode: "TO_CONFIRM_RECEIVE", label: "Sudah sampai" },
     { kode: "COMPLETED", label: "Selesai" },
     { kode: "CANCELLED", label: "Batal" },
     { kode: "TO_RETURN", label: "Pengembalian" },
@@ -46,6 +49,7 @@ const STATUS: Record<Platform, { kode: string; label: string }[]> = {
     { kode: "UNPAID", label: "Unpaid" },
     { kode: "AWAITING_SHIPMENT", label: "Awaiting shipment" },
     { kode: "IN_TRANSIT", label: "In transit" },
+    { kode: "DELIVERED", label: "Delivered" },
     { kode: "COMPLETED", label: "Completed" },
     { kode: "CANCELLED", label: "Cancelled" },
   ],
@@ -283,6 +287,11 @@ export default function SimulatorMarketplace() {
                     <p className="mt-1 text-xs text-tinta-lembut">
                       {o.nama} · {o.items.map((it) => `${it.qty}× ${it.sku}`).join(", ")}
                     </p>
+                    {o.resi && (
+                      <p className="mt-1 font-kode text-[11px] text-tinta-lembut">
+                        🚚 {o.kurir} · resi {o.resi}
+                      </p>
+                    )}
                     <div className="mt-3 flex gap-2">
                       <select
                         value={pilihan}
