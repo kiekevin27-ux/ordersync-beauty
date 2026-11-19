@@ -39,11 +39,13 @@ const KODE: Record<Jenis, string> = { ulasan: "u", beli_ulang: "b" };
 export const LABEL_JENIS: Record<Jenis, string> = { ulasan: "⭐ Minta ulasan", beli_ulang: "🔁 Pengingat beli ulang" };
 export const idFU = (no: string, j: Jenis) => `${no}|${KODE[j]}`;
 
+// Sengaja TANPA emoji: link wa.me yang dibuka di WhatsApp Desktop (Windows) / sebagian WhatsApp Web
+// mengubah emoji jadi "?". Pemilik toko tetap boleh menambah emoji sendiri di tab Template_Pesan.
 export const TEMPLATE_BAWAAN: Record<Jenis, string> = {
   ulasan:
-    "Halo Kak {nama} 👋 Ini Glowra Beauty. Paketnya sudah sampai ya? Gimana {produk}-nya, cocok di kulit? 😊\n\nBoleh minta ulasan singkatnya? Bantu kami banget 🙏✨ Kalau ada keluhan, balas chat ini saja ya.",
+    "Halo Kak {nama}, ini Glowra Beauty. Paketnya sudah sampai ya? Gimana {produk}-nya, cocok di kulit?\n\nBoleh minta ulasan singkatnya, Kak? Bantu kami banget. Kalau ada keluhan, balas chat ini saja ya. Terima kasih!",
   beli_ulang:
-    "Halo Kak {nama} 😊 {produk} yang Kakak beli {hari} hari lalu biasanya sudah mau habis nih.\n\nMau pesan lagi? Keranjangnya sudah kami siapkan, tinggal klik: {link}\n\nBalas STOP kalau tidak ingin diingatkan lagi ya 🙏",
+    "Halo Kak {nama}, {produk} yang Kakak beli {hari} hari lalu biasanya sudah mau habis nih.\n\nMau pesan lagi? Keranjangnya sudah kami siapkan, tinggal klik: {link}\n\nBalas STOP kalau tidak ingin diingatkan lagi ya. Terima kasih!",
 };
 
 // ---------------------------------------------------------------------------

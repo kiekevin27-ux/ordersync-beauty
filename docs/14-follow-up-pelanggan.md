@@ -37,7 +37,7 @@ Checkout (centang "boleh dihubungi via WhatsApp")
 | Tab | Isi |
 |---|---|
 | `Follow_Up` | Riwayat: id (`no_pesanan\|u` ulasan / `\|b` beli ulang), status `terkirim` / `dilewati` / `berhasil`, pesanan ulang & omzetnya |
-| `Template_Pesan` | Teks WhatsApp yang bisa diedit pemilik toko. Penanda: `{nama}`, `{produk}`, `{hari}`, `{link}`, `{no_pesanan}` |
+| `Template_Pesan` | Teks WhatsApp yang bisa diedit pemilik toko. Penanda: `{nama}`, `{produk}`, `{hari}`, `{link}`, `{no_pesanan}`. Bawaannya **tanpa emoji**: link `wa.me` yang dibuka di WhatsApp Desktop (Windows) / sebagian WhatsApp Web mengubah emoji jadi "?" |
 | `Tidak_Dihubungi` | Nomor yang minta berhenti dihubungi |
 
 Kolom baru di `Order_Masuk`: `izin_wa`, `sampai_pada`, `dari_followup`.
