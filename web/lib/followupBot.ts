@@ -23,7 +23,7 @@ function teksKartu(x: ItemFU): string {
 
 const tombolKartu = (x: ItemFU) => ({
   inline_keyboard: [
-    [{ text: "💬 Buka WhatsApp (pesan sudah terisi)", url: x.linkWa }],
+    [{ text: "📱 WhatsApp (HP)", url: x.linkWa }, { text: "💻 WhatsApp Web (laptop)", url: x.linkWaWeb }],
     [{ text: "✅ Sudah dikirim", callback_data: `fu|k|${x.id}` }, { text: "⏭️ Lewati", callback_data: `fu|l|${x.id}` }],
     [{ text: "🚫 Jangan hubungi lagi", callback_data: `fu|s|${x.id}` }],
   ],
@@ -45,7 +45,7 @@ export async function kirimDaftarFollowUp(chatIds: (string | number)[] = daftarP
         `💌 Follow-up hari ini: ${daftar.length} pelanggan`,
         `${ulasan} minta ulasan · ${tampil.length - ulasan} pengingat beli ulang${daftar.length > tampil.length ? ` (ditampilkan ${tampil.length} dulu)` : ""}`,
         "",
-        "Cara: tekan 💬 Buka WhatsApp → kirim pesannya → kembali ke sini, tekan ✅ Sudah dikirim.",
+        "Cara: tekan 📱 WhatsApp (dari HP) atau 💻 WhatsApp Web (dari laptop) → kirim pesannya → kembali ke sini, tekan ✅ Sudah dikirim.",
       ].join("\n"),
     });
     for (const x of tampil) {

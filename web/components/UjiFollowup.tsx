@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 type Item = {
   id: string; jenis: "ulasan" | "beli_ulang"; no: string; nama: string; hp: string; jatuhTempo: string; terlambat: number;
-  produk: string; pesan: string; linkWa: string;
+  produk: string; pesan: string; linkWa: string; linkWaWeb: string;
 };
 
 const LABEL: Record<Item["jenis"], string> = { ulasan: "⭐ Minta ulasan", beli_ulang: "🔁 Beli ulang" };
@@ -121,7 +121,10 @@ export default function UjiFollowup() {
                     {LABEL[x.jenis]} · {x.nama}
                     {x.terlambat > 0 && <span className="ml-2 text-xs font-normal text-tinta-lembut">terlambat {x.terlambat} hari</span>}
                   </p>
-                  <a href={x.linkWa} target="_blank" rel="noreferrer" className="tombol-garis !px-3 !py-1.5 !text-xs">💬 Buka WhatsApp ↗</a>
+                  <div className="flex flex-wrap gap-2">
+                    <a href={x.linkWa} target="_blank" rel="noreferrer" className="tombol-garis !px-3 !py-1.5 !text-xs">📱 WhatsApp (HP) ↗</a>
+                    <a href={x.linkWaWeb} target="_blank" rel="noreferrer" className="tombol-garis !px-3 !py-1.5 !text-xs">💻 WhatsApp Web ↗</a>
+                  </div>
                 </div>
                 <p className="mt-1 font-kode text-xs text-tinta-lembut">{x.no} · {x.produk}</p>
                 <p className="mt-3 whitespace-pre-line rounded-xl bg-blush-muda/60 p-3 text-sm">{x.pesan}</p>

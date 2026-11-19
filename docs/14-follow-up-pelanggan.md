@@ -9,7 +9,7 @@ Checkout (centang "boleh dihubungi via WhatsApp")
    → order diantar → status "sampai" (dashboard) → kolom sampai_pada terisi
    → setiap pagi 08:00 WIB (Vercel Cron) hitung siapa yang jatuh tempo
    → bot Telegram kirim 1 kartu per pelanggan:
-        💬 Buka WhatsApp (pesan sudah terisi)   ✅ Sudah dikirim   ⏭️ Lewati   🚫 Jangan hubungi lagi
+        📱 WhatsApp (HP) / 💻 WhatsApp Web   ✅ Sudah dikirim   ⏭️ Lewati   🚫 Jangan hubungi lagi
    → pelanggan klik link "pesan ulang" → keranjang terisi → checkout
    → follow-up dicatat BERHASIL + omzetnya muncul di dashboard
 ```
@@ -37,7 +37,7 @@ Checkout (centang "boleh dihubungi via WhatsApp")
 | Tab | Isi |
 |---|---|
 | `Follow_Up` | Riwayat: id (`no_pesanan\|u` ulasan / `\|b` beli ulang), status `terkirim` / `dilewati` / `berhasil`, pesanan ulang & omzetnya |
-| `Template_Pesan` | Teks WhatsApp yang bisa diedit pemilik toko. Penanda: `{nama}`, `{produk}`, `{hari}`, `{link}`, `{no_pesanan}`. Bawaannya **tanpa emoji**: link `wa.me` yang dibuka di WhatsApp Desktop (Windows) / sebagian WhatsApp Web mengubah emoji jadi "?" |
+| `Template_Pesan` | Teks WhatsApp yang bisa diedit pemilik toko. Penanda: `{nama}`, `{produk}`, `{hari}`, `{link}`, `{no_pesanan}`. Boleh pakai emoji. Kartu punya 2 tombol: **📱 WhatsApp (HP)** (`wa.me`) dan **💻 WhatsApp Web (laptop)** (`web.whatsapp.com/send`), karena aplikasi WhatsApp Desktop di Windows bisa mengubah emoji dari link `wa.me` jadi "?" |
 | `Tidak_Dihubungi` | Nomor yang minta berhenti dihubungi |
 
 Kolom baru di `Order_Masuk`: `izin_wa`, `sampai_pada`, `dari_followup`.

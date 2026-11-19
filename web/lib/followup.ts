@@ -39,13 +39,13 @@ const KODE: Record<Jenis, string> = { ulasan: "u", beli_ulang: "b" };
 export const LABEL_JENIS: Record<Jenis, string> = { ulasan: "⭐ Minta ulasan", beli_ulang: "🔁 Pengingat beli ulang" };
 export const idFU = (no: string, j: Jenis) => `${no}|${KODE[j]}`;
 
-// Sengaja TANPA emoji: link wa.me yang dibuka di WhatsApp Desktop (Windows) / sebagian WhatsApp Web
-// mengubah emoji jadi "?". Pemilik toko tetap boleh menambah emoji sendiri di tab Template_Pesan.
+// Catatan emoji: link wa.me yang dibuka lewat aplikasi WhatsApp Desktop (Windows) bisa mengubah emoji jadi "?".
+// Karena itu kartu Telegram punya 2 tombol: wa.me (HP) dan web.whatsapp.com/send (browser laptop).
 export const TEMPLATE_BAWAAN: Record<Jenis, string> = {
   ulasan:
-    "Halo Kak {nama}, ini Glowra Beauty. Paketnya sudah sampai ya? Gimana {produk}-nya, cocok di kulit?\n\nBoleh minta ulasan singkatnya, Kak? Bantu kami banget. Kalau ada keluhan, balas chat ini saja ya. Terima kasih!",
+    "Halo Kak {nama} 👋 Ini Glowra Beauty. Paketnya sudah sampai ya? Gimana {produk}-nya, cocok di kulit? 😊\n\nBoleh minta ulasan singkatnya? Bantu kami banget 🙏✨ Kalau ada keluhan, balas chat ini saja ya.",
   beli_ulang:
-    "Halo Kak {nama}, {produk} yang Kakak beli {hari} hari lalu biasanya sudah mau habis nih.\n\nMau pesan lagi? Keranjangnya sudah kami siapkan, tinggal klik: {link}\n\nBalas STOP kalau tidak ingin diingatkan lagi ya. Terima kasih!",
+    "Halo Kak {nama} 😊 {produk} yang Kakak beli {hari} hari lalu biasanya sudah mau habis nih.\n\nMau pesan lagi? Keranjangnya sudah kami siapkan, tinggal klik: {link}\n\nBalas STOP kalau tidak ingin diingatkan lagi ya 🙏",
 };
 
 // ---------------------------------------------------------------------------
@@ -77,7 +77,11 @@ type Order = {
 
 export type ItemFU = {
   id: string; jenis: Jenis; no: string; nama: string; hp: string; jatuhTempo: string; terlambat: number;
-  produk: string; hari: number; pesan: string; linkWa: string;
+  produk: string; hari: number; pesan: string;
+  /** wa.me: untuk HP. */
+  linkWa: string;
+  /** web.whatsapp.com: untuk laptop lewat browser (emoji aman, tidak lewat aplikasi WhatsApp Desktop). */
+  linkWaWeb: string;
 };
 
 type DataFU = { orders: Order[]; riwayat: Map<string, Record<string, unknown>>; template: Record<Jenis, string>; stop: Set<string> };
@@ -175,6 +179,7 @@ export async function daftarHariIni(hariIni = waktuWib().slice(0, 10)): Promise<
       hasil.push({
         id, jenis: c.jenis, no: o.no, nama: o.nama, hp: o.hp, jatuhTempo: c.tempo, terlambat, produk: c.produk, hari, pesan,
         linkWa: `https://wa.me/${o.hp}?text=${encodeURIComponent(pesan)}`,
+        linkWaWeb: `https://web.whatsapp.com/send?phone=${o.hp}&text=${encodeURIComponent(pesan)}`,
       });
     }
   }
