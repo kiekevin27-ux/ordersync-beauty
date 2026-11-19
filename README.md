@@ -41,7 +41,7 @@ Glowra Beauty jualan di **3 tempat sekaligus**: Shopee, TikTok Shop, dan WhatsAp
 
 ## 2. Solusi
 
-Fondasi data & otomasi dalam 10 lapis:
+Fondasi data & otomasi dalam 12 lapis:
 
 | Lapis | Yang dilakukan | File |
 |---|---|---|
@@ -56,6 +56,7 @@ Fondasi data & otomasi dalam 10 lapis:
 | **9. Stok otomatis + notifikasi** | Tab `Stok_Live` menghitung stok dari semua order (order baru sudah **memesan** stok supaya tidak oversell). Begitu produk menyentuh batas minimum, pemilik dapat **pesan Telegram**, tanpa spam (hanya saat status berubah) | [`n8n/06_…`](n8n/06_notifikasi_stok_telegram.json) · [`docs/09`](docs/09-stok-dan-notifikasi.md) |
 | **10. Dashboard pemilik** | Halaman `/dashboard`: omzet, order, channel, status, produk terlaris, stok, order terbaru, langsung dari Google Sheet. Bisa dibuka dari HP, siap online di Vercel | [`web/app/dashboard`](web/app/dashboard/page.tsx) · [`docs/10`](docs/10-dashboard.md) · [`docs/11`](docs/11-deploy-vercel.md) |
 | **11. Jalan 24 jam online + bot Telegram** | Logika workflow 03/04/06 juga berjalan di **Vercel**, jadi demo online benar-benar mencatat order tanpa laptop menyala. Bot **@AMBAPRIMEBOT** bisa diajak chat: `/ringkasan`, `/hariini`, `/stok`, `/restock`, `/order …`, dan mengirim ringkasan stok tiap pagi | [`web/lib/gerbang.ts`](web/lib/gerbang.ts) · [`web/lib/bot.ts`](web/lib/bot.ts) · [`docs/13`](docs/13-otomasi-online-dan-bot-telegram.md) |
+| **12. Follow-up pelanggan** | Minta ulasan **H+3** setelah paket sampai & **pengingat beli ulang** saat skincare diperkirakan hampir habis (lama pakai per produk). Hanya pembeli yang mencentang izin WhatsApp (UU PDP). Tiap pagi bot Telegram mengirim kartu per pelanggan dengan tombol **Buka WhatsApp** (pesan sudah terisi) + tombol tandai. Link **pesan ulang** mengisi keranjang otomatis, dan dashboard menghitung **omzet dari beli ulang** | [`web/lib/followup.ts`](web/lib/followup.ts) · [`docs/14`](docs/14-follow-up-pelanggan.md) |
 
 ## 3. Arsitektur
 
@@ -182,7 +183,8 @@ Keputusan teknologi dan alasannya dicatat di [`ADR-001`](docs/adr/ADR-001-stack-
 | ✅ **Selesai** | **Import file export via Google Drive** | Bisa langsung dipakai seller tanpa izin API |
 | ✅ **Selesai** | **Stok otomatis + notifikasi RESTOCK ke Telegram** | Tidak kehabisan produk andalan |
 | ✅ **Selesai** | **Dashboard** omzet, channel, status, produk terlaris & stok (web, bisa dibuka dari HP) | Owner pantau bisnis tanpa membuka sheet |
-| **Berikutnya** | **Follow-up WA otomatis**: pengingat H+25 setelah pembelian (skincare habis ±1 bulan), ucapan terima kasih, minta review. Lewat WhatsApp Business Platform resmi | Repeat order naik tanpa admin harus ingat |
+| ✅ **Selesai** | **Follow-up pelanggan**: minta ulasan H+3 & pengingat beli ulang sesuai lama pakai produk, daftar harian di Telegram + link WhatsApp siap kirim, link pesan ulang, omzet beli ulang di dashboard | Repeat order naik tanpa admin harus ingat |
+| **Berikutnya** | Kirim follow-up **otomatis penuh** lewat WhatsApp Business Platform resmi (sekarang: admin menekan kirim) | Hemat waktu admin untuk toko dengan ratusan pelanggan |
 | **Menengah** | **Sinkron stok real-time** antar channel via API resmi Shopee & TikTok (butuh otorisasi toko & persetujuan app partner) | Overselling hilang |
 | | Rekonsiliasi dana cair vs pesanan selesai | Dana yang "nyangkut" ketahuan |
 | **Menengah** | **n8n online** (n8n Cloud / server) + login untuk dashboard | Sistem jalan 24 jam, siap dipakai klien |

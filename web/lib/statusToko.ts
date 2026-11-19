@@ -8,7 +8,7 @@
  * Order disusun ulang dari baris-baris di sheet lalu dikirim lagi ke gerbang order yang sama
  * (lib/gerbang.ts), sehingga aturan validasi, upsert, notifikasi Telegram, dan cek stok tetap satu jalur.
  */
-import { prosesOrder } from "./gerbang";
+import { prosesOrder, waktuWib } from "./gerbang";
 import { DAFTAR_KURIR, LABEL_STATUS, LANGKAH, resiDemo } from "./lacak";
 import { bacaTab } from "./sheets";
 
@@ -57,6 +57,8 @@ export async function ubahStatusToko(input: { no_pesanan: string; status: string
     tanggal_pesanan: teksTanggal(r.tanggal_pesanan),
     ...(kurir ? { kurir } : {}),
     ...(resi ? { no_resi: resi } : {}),
+    // catat kapan paket sampai: dasar jadwal follow-up (minta ulasan H+3, pengingat beli ulang)
+    ...(status === "sampai" ? { sampai_pada: waktuWib().slice(0, 16) } : {}),
     items: baris.map((b) => ({ sku: b.sku, qty: b.qty, ...(b.harga_satuan === "" || b.harga_satuan === undefined ? {} : { harga_satuan: b.harga_satuan }) })),
   });
   if (g.http !== 200) {

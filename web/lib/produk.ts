@@ -6,6 +6,8 @@ export type Produk = {
   nama: string;
   kategori: string;
   harga: number;
+  /** Perkiraan 1 produk habis dipakai dalam berapa hari (pengingat beli ulang). */
+  lama_pakai_hari: number;
 };
 
 // Sumber kebenaran tetap data/master_produk.csv di root repo (dipakai juga script Python & workbook).

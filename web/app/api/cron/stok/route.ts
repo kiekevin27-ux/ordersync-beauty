@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { cekStok } from "@/lib/stok";
+import { kirimDaftarFollowUp } from "@/lib/followupBot";
+import { telegramSiap } from "@/lib/telegram";
 
 /**
  * GET /api/cron/stok — dijalankan otomatis oleh Vercel Cron (lihat web/vercel.json), tiap pagi 08:00 WIB.
@@ -17,7 +19,10 @@ export async function GET(req: Request) {
   }
   try {
     const h = await cekStok({ paksa: true });
-    return NextResponse.json({ ok: true, notifikasi_dikirim: h.notifikasi_dikirim, galat_telegram: h.galat_telegram, perlu_perhatian: h.perlu_perhatian.length });
+    // Daftar follow-up pelanggan hari ini (diam kalau tidak ada; gagal di sini tidak menggagalkan laporan stok).
+    let followup: number | string = 0;
+    if (telegramSiap()) followup = await kirimDaftarFollowUp(undefined, { diamKalauKosong: true }).catch((e) => `gagal: ${e instanceof Error ? e.message : e}`);
+    return NextResponse.json({ ok: true, notifikasi_dikirim: h.notifikasi_dikirim, galat_telegram: h.galat_telegram, perlu_perhatian: h.perlu_perhatian.length, followup });
   } catch (e) {
     return NextResponse.json({ ok: false, galat: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }

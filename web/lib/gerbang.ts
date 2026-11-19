@@ -53,8 +53,14 @@ function cekOrder(body: Obj) {
     errors.push("Field 'tanggal_pesanan' harus berformat YYYY-MM-DD atau YYYY-MM-DD HH:mm");
   }
 
-  for (const f of ["kurir", "no_resi"]) {
+  for (const f of ["kurir", "no_resi", "dari_followup"]) {
     if (!kosong(body[f]) && String(body[f]).trim().length > 40) errors.push(`Field '${f}' maksimal 40 karakter`);
+  }
+  if (!kosong(body.izin_wa) && !["ya", "tidak"].includes(String(body.izin_wa).trim().toLowerCase())) {
+    errors.push("Field 'izin_wa' harus 'ya' atau 'tidak'");
+  }
+  if (!kosong(body.sampai_pada) && !POLA_TANGGAL.test(String(body.sampai_pada).trim())) {
+    errors.push("Field 'sampai_pada' harus berformat YYYY-MM-DD atau YYYY-MM-DD HH:mm");
   }
 
   let items: Obj[] = [];
@@ -97,6 +103,11 @@ type Baris = {
   status: string; catatan: string; status_pesanan: string; tanggal_pesanan: string;
   // Opsional: hanya ditulis kalau dikirim, supaya resi yang sudah tercatat tidak terhapus oleh update status lain.
   kurir?: string; no_resi?: string;
+  // Follow-up pelanggan (lib/followup.ts), juga hanya ditulis kalau dikirim:
+  //   izin_wa       "ya" kalau pembeli mencentang "boleh dihubungi via WhatsApp" saat checkout
+  //   sampai_pada   kapan paket sampai (diisi saat status diubah ke "sampai") → dasar H+3 & beli ulang
+  //   dari_followup no pesanan lama, kalau order ini dibuat dari link "pesan ulang"
+  izin_wa?: string; sampai_pada?: string; dari_followup?: string;
 };
 
 /** Rapikan order lalu pecah jadi 1 baris per produk (aturan sama dengan scripts/clean_merge.py). */
@@ -132,6 +143,10 @@ function normalisasi(o: Obj & { items: Obj[] }, wib: string): Baris[] {
   const lacak: Pick<Baris, "kurir" | "no_resi"> = {};
   if (!kosong(o.kurir)) lacak.kurir = String(o.kurir).trim();
   if (!kosong(o.no_resi)) lacak.no_resi = String(o.no_resi).trim();
+  const ikut: Pick<Baris, "izin_wa" | "sampai_pada" | "dari_followup"> = {};
+  if (!kosong(o.izin_wa)) ikut.izin_wa = String(o.izin_wa).trim().toLowerCase();
+  if (!kosong(o.sampai_pada)) ikut.sampai_pada = String(o.sampai_pada).trim();
+  if (!kosong(o.dari_followup)) ikut.dari_followup = String(o.dari_followup).trim();
 
   return o.items.map((it) => {
     const sku = String(it.sku).trim().toUpperCase();
@@ -154,6 +169,7 @@ function normalisasi(o: Obj & { items: Obj[] }, wib: string): Baris[] {
       status_pesanan: statusPesanan,
       tanggal_pesanan: tanggalPesanan,
       ...lacak,
+      ...ikut,
     };
   });
 }

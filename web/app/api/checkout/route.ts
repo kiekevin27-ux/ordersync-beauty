@@ -5,6 +5,7 @@ import { pingCekStok } from "@/lib/cekStok";
 import { periksaCheckout } from "@/lib/cekCheckout";
 import { prosesOrder } from "@/lib/gerbang";
 import { sheetsTersambung } from "@/lib/sheets";
+import { catatBerhasil } from "@/lib/followup";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // batas aman Vercel Hobby; normalnya selesai < 5 detik
@@ -69,12 +70,15 @@ export async function POST(req: Request) {
   const noPesanan =
     body.no_pesanan && POLA_NO_PESANAN.test(body.no_pesanan) ? body.no_pesanan : buatNoPesanan();
 
+  const dariFollowup = typeof body.dari_followup === "string" && /^[A-Za-z0-9-]{4,40}$/.test(body.dari_followup) ? body.dari_followup : "";
   const payload = {
     channel: "website",
     no_pesanan: noPesanan,
     nama_pembeli: body.nama_pembeli ?? "",
     no_hp: body.no_hp ?? "",
     items,
+    izin_wa: body.izin_wa ? "ya" : "tidak",
+    ...(dariFollowup ? { dari_followup: dariFollowup } : {}),
   };
 
   // Batas qty, stok cukup, dan kirim ulang yang aman (lihat lib/cekCheckout.ts).
@@ -92,6 +96,10 @@ export async function POST(req: Request) {
     const pesanGerbang = String(g.balasan.pesan ?? "");
     if (g.http === 200) {
       await pingCekStok();
+      // Order dari link "pesan ulang" → follow-up beli ulang order lama tercatat BERHASIL (untuk dashboard).
+      if (dariFollowup && noPesanan !== body.no_pesanan) {
+        await catatBerhasil(dariFollowup, noPesanan, Number(g.balasan.total) || 0).catch((e) => console.error("Catat follow-up berhasil gagal:", e));
+      }
       return balas({ ...dasar, hasil: "tersimpan", pesan: pesanGerbang || "Order tercatat" });
     }
     if (g.http === 400) return balas({ ...dasar, hasil: "ditolak", pesan: pesanGerbang || "Data order ditolak" }, 400);

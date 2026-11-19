@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { KUNCI_FOLLOWUP } from "./PesanUlang";
 import { useKeranjang } from "./KeranjangProvider";
 import PengaturQty from "./PengaturQty";
 import VisualProduk from "./VisualProduk";
@@ -41,6 +42,20 @@ export default function Checkout() {
   const [hasil, setHasil] = useState<HasilCheckout | null>(null);
   const [terakhir, setTerakhir] = useState<PermintaanCheckout | null>(null);
   const [kirimUlang, setKirimUlang] = useState(false);
+  const [izinWa, setIzinWa] = useState(false);
+  // Keranjang dari link "pesan ulang" (pesan follow-up WhatsApp): simpan no pesanan lamanya.
+  const [dariFollowup, setDariFollowup] = useState("");
+  useEffect(() => {
+    try {
+      const ref = JSON.parse(localStorage.getItem(KUNCI_FOLLOWUP) ?? "null");
+      if (ref?.no && Date.now() - ref.t < 7 * 86400_000) {
+        setDariFollowup(ref.no);
+        setIzinWa(true); // pembeli lama yang dulu sudah memberi izin
+      }
+    } catch {
+      /* abaikan */
+    }
+  }, []);
 
   async function kirim(req: PermintaanCheckout) {
     setMengirim(true);
@@ -57,6 +72,10 @@ export default function Checkout() {
         const noPesanan = (h.diterima as BalasanN8n | null)?.no_pesanan;
         setTerakhir({ ...req, no_pesanan: noPesanan });
         if (!req.no_pesanan) kosongkan(); // kosongkan keranjang hanya untuk order baru
+        if (req.dari_followup) {
+          try { localStorage.removeItem(KUNCI_FOLLOWUP); } catch { /* abaikan */ }
+          setDariFollowup("");
+        }
       }
     } catch {
       setHasil({
@@ -73,7 +92,7 @@ export default function Checkout() {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    kirim({ nama_pembeli: nama, no_hp: hp, items: itemsKeranjang });
+    kirim({ nama_pembeli: nama, no_hp: hp, items: itemsKeranjang, izin_wa: izinWa, ...(dariFollowup ? { dari_followup: dariFollowup } : {}) });
   };
 
   // Demo: kirim data rusak supaya terlihat n8n menolak dengan alasan jelas.
@@ -108,6 +127,21 @@ export default function Checkout() {
             placeholder="mis. 0812-555-1234" required
           />
           <p className="mt-1.5 text-xs text-tinta-lembut">Boleh ditulis 08…, +62…, pakai spasi atau strip. {NAMA_MESIN} yang merapikan.</p>
+
+          <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl bg-blush-muda/60 p-3 text-sm">
+            <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#C9184A]" checked={izinWa} onChange={(e) => setIzinWa(e.target.checked)} />
+            <span>
+              Boleh dihubungi via WhatsApp untuk <b>minta ulasan</b> & <b>pengingat saat produk mau habis</b>.
+              <span className="mt-0.5 block text-xs text-tinta-lembut">Opsional. Bisa berhenti kapan saja dengan membalas STOP.</span>
+            </span>
+          </label>
+
+          {dariFollowup && (
+            <p className="mt-4 rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-xs text-emerald-900">
+              🔁 Pesanan ulang dari <span className="font-kode font-semibold">{dariFollowup}</span>. Keranjang sudah diisi produk yang sama. Kalau order ini
+              tercatat, follow-up ini dihitung <b>berhasil</b> di dashboard toko.
+            </p>
+          )}
 
           <button type="submit" className="tombol-utama mt-6 w-full" disabled={mengirim || isi.length === 0}>
             {mengirim ? `Mengirim ke ${NAMA_MESIN}…` : isi.length === 0 ? "Keranjang kosong" : `Pesan sekarang · ${rupiah(total)}`}

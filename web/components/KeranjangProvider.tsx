@@ -18,6 +18,8 @@ type NilaiKeranjang = {
   ubahQty: (sku: string, qty: number) => void;
   hapus: (sku: string) => void;
   kosongkan: () => void;
+  /** Ganti seluruh isi keranjang (dipakai link "pesan ulang"). */
+  isiUlang: (items: ItemKeranjang[]) => void;
   laciTerbuka: boolean;
   bukaLaci: (v: boolean) => void;
 };
@@ -71,6 +73,10 @@ export default function KeranjangProvider({ produk, children }: { produk: Produk
 
   const hapus = useCallback((sku: string) => setItems((lama) => lama.filter((i) => i.sku !== sku)), []);
   const kosongkan = useCallback(() => setItems([]), []);
+  const isiUlang = useCallback(
+    (baru: ItemKeranjang[]) => setItems(baru.filter((i) => i.qty > 0).map((i) => ({ sku: i.sku, qty: Math.min(i.qty, MAKS_QTY) }))),
+    [],
+  );
 
   const nilai = useMemo<NilaiKeranjang>(() => {
     const isi = items
@@ -81,9 +87,9 @@ export default function KeranjangProvider({ produk, children }: { produk: Produk
       isi,
       jumlah: isi.reduce((s, i) => s + i.qty, 0),
       total: isi.reduce((s, i) => s + i.qty * i.produk.harga, 0),
-      tambah, ubahQty, hapus, kosongkan, laciTerbuka, bukaLaci,
+      tambah, ubahQty, hapus, kosongkan, isiUlang, laciTerbuka, bukaLaci,
     };
-  }, [items, produk, tambah, ubahQty, hapus, kosongkan, laciTerbuka]);
+  }, [items, produk, tambah, ubahQty, hapus, kosongkan, isiUlang, laciTerbuka]);
 
   return <Ctx.Provider value={nilai}>{children}</Ctx.Provider>;
 }

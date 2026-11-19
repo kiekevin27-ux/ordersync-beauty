@@ -11,6 +11,7 @@ import { LABEL_CHANNEL, LABEL_STATUS } from "./lacak";
 import { bacaTab } from "./sheets";
 import { barisStok, bacaStok, cekStok, jamWib } from "./stok";
 import { daftarPemilik } from "./telegram";
+import { kirimDaftarFollowUp } from "./followupBot";
 
 /** Menu perintah (juga didaftarkan ke Telegram lewat setMyCommands). */
 export const PERINTAH = [
@@ -22,6 +23,7 @@ export const PERINTAH = [
   { command: "diantar", description: "Order yang sedang diantar kurir" },
   { command: "stok", description: "Stok semua produk" },
   { command: "restock", description: "Produk yang perlu restock" },
+  { command: "followup", description: "Pelanggan yang perlu dihubungi hari ini (ulasan & beli ulang)" },
   { command: "bantuan", description: "Daftar perintah" },
 ];
 
@@ -36,6 +38,7 @@ function bantuan(nama: string) {
     ...PERINTAH.map((p) => `/${p.command} — ${p.description}`),
     "",
     "Saya juga mengabari otomatis setiap ada order baru, order berubah status (dikemas, diantar, sampai, selesai), dan stok menipis.",
+    "Setiap pagi saya kirim daftar pelanggan yang perlu di-follow-up (minta ulasan & pengingat beli ulang) lengkap dengan tombol WhatsApp.",
   ].join("\n");
 }
 
@@ -201,6 +204,11 @@ export async function balasChat(pesan: { chatId: number | string; teks: string; 
     ].join("\n");
   }
   try {
+    // Follow-up dikirim sebagai beberapa kartu bertombol langsung dari sini; balasan teks dikosongkan.
+    if (perintah === "followup") {
+      await kirimDaftarFollowUp([pesan.chatId]);
+      return "";
+    }
     return await jawab(perintah, argumen, pesan.nama || "Kak");
   } catch (e) {
     return `Maaf, saya gagal membaca Google Sheets 🙏\n(${e instanceof Error ? e.message : String(e)})`;

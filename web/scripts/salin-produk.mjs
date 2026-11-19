@@ -15,7 +15,11 @@ const kol = header.split(",");
 const i = (k) => kol.indexOf(k);
 const produk = baris.map((b) => {
   const f = b.split(","); // CSV ini tidak memakai tanda kutip/koma di dalam nilai
-  return { sku: f[i("sku")], nama: f[i("nama_produk")], kategori: f[i("kategori")], harga: Number(f[i("harga_jual")]) };
+  return {
+    sku: f[i("sku")], nama: f[i("nama_produk")], kategori: f[i("kategori")], harga: Number(f[i("harga_jual")]),
+    // perkiraan berapa hari 1 produk habis dipakai (untuk pengingat beli ulang)
+    lama_pakai_hari: Number(f[i("lama_pakai_hari")]) || 30,
+  };
 });
 writeFileSync(out, JSON.stringify(produk, null, 2) + "\n");
 console.log(`produk.generated.json: ${produk.length} produk`);

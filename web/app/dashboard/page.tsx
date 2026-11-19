@@ -8,6 +8,7 @@ import { ambilDataDasbor, type DataDasbor } from "@/lib/dasbor";
 import { alasanBelumTersambung, sheetsTersambung } from "@/lib/sheets";
 import { rupiah } from "@/lib/format";
 import { telegramSiap } from "@/lib/telegram";
+import { statistik, type StatFU } from "@/lib/followup";
 
 export const metadata: Metadata = { title: "Dashboard Pemilik · Glowra Beauty (toko demo)" };
 export const dynamic = "force-dynamic";
@@ -64,6 +65,7 @@ export default async function HalamanDasbor() {
   } catch (e) {
     return <BelumTersambung alasan={`Gagal membaca Google Sheet: ${e instanceof Error ? e.message : "tidak diketahui"}`} />;
   }
+  const fu: StatFU | null = await statistik().catch(() => null);
   const masalah = d.stok.filter((s) => s.status !== "AMAN").sort((a, b) => a.tersedia - a.minimum - (b.tersedia - b.minimum));
 
   return (
@@ -105,6 +107,24 @@ export default async function HalamanDasbor() {
       >
         <KelolaOrder orders={d.orderToko} />
       </Kartu>
+
+      {fu && (
+        <Kartu
+          judul="Follow-up pelanggan"
+          sub="Minta ulasan H+3 setelah paket sampai & pengingat saat produk hampir habis. Hanya pembeli website/WhatsApp yang mengizinkan dihubungi. Daftar dikirim bot Telegram tiap pagi."
+          className="mt-6"
+        >
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <Ubin judul="Perlu dihubungi hari ini" nilai={fu.menunggu.toLocaleString("id-ID")} catatan="Belum ditandai di Telegram" />
+            <Ubin judul="Dihubungi bulan ini" nilai={fu.terkirim.toLocaleString("id-ID")} catatan={`${fu.ulasan} ulasan · ${fu.beliUlang} beli ulang`} />
+            <Ubin judul="Beli lagi dari pengingat" nilai={fu.berhasil.toLocaleString("id-ID")} catatan="Order lewat link pesan ulang" />
+            <Ubin sorot judul="Omzet dari beli ulang" nilai={rupiah(fu.omzetUlang)} catatan="Bulan ini" />
+          </div>
+          <Link href="/uji-followup" className="mt-4 inline-block text-xs font-semibold text-mawar underline-offset-2 hover:underline">
+            🧪 Uji alur follow-up →
+          </Link>
+        </Kartu>
+      )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
         <Kartu judul="Omzet per minggu" sub="Order dikirim + sampai + selesai, menurut tanggal pesanan">
