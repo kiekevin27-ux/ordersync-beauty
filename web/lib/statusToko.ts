@@ -20,7 +20,7 @@ function teksTanggal(v: unknown): string {
 
 export type HasilUbahStatus = { ok: boolean; pesan: string; status?: string; kurir?: string; no_resi?: string };
 
-export async function ubahStatusToko(input: { no_pesanan: string; status: string; kurir?: string; no_resi?: string }): Promise<HasilUbahStatus> {
+export async function ubahStatusToko(input: { no_pesanan: string; status: string; kurir?: string; no_resi?: string; otomatis?: boolean }): Promise<HasilUbahStatus> {
   const no = String(input.no_pesanan ?? "").trim();
   const status = String(input.status ?? "").trim().toLowerCase();
   if (!no) return { ok: false, pesan: "No pesanan wajib diisi" };
@@ -58,7 +58,9 @@ export async function ubahStatusToko(input: { no_pesanan: string; status: string
     ...(kurir ? { kurir } : {}),
     ...(resi ? { no_resi: resi } : {}),
     // catat kapan paket sampai: dasar jadwal follow-up (minta ulasan H+3, pengingat beli ulang)
-    ...(status === "sampai" ? { sampai_pada: waktuWib().slice(0, 16) } : {}),
+    ...(status === "sampai" ? { sampai_pada: waktuWib().slice(0, 16), sampai_otomatis: input.otomatis ? "ya" : "tidak" } : {}),
+    // catat kapan paket diserahkan ke kurir: dasar "anggap sampai otomatis" (lib/sampaiOtomatis.ts)
+    ...(status === "dikirim" ? { dikirim_pada: waktuWib().slice(0, 16) } : {}),
     items: baris.map((b) => ({ sku: b.sku, qty: b.qty, ...(b.harga_satuan === "" || b.harga_satuan === undefined ? {} : { harga_satuan: b.harga_satuan }) })),
   });
   if (g.http !== 200) {

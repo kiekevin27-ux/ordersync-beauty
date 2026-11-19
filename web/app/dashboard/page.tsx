@@ -9,6 +9,8 @@ import { alasanBelumTersambung, sheetsTersambung } from "@/lib/sheets";
 import { rupiah } from "@/lib/format";
 import { telegramSiap } from "@/lib/telegram";
 import { statistik, type StatFU } from "@/lib/followup";
+import { DATA_MINIMAL, hitungSiklus, type BarisSiklus } from "@/lib/siklus";
+import SiklusPakai from "@/components/dasbor/SiklusPakai";
 
 export const metadata: Metadata = { title: "Dashboard Pemilik · Glowra Beauty (toko demo)" };
 export const dynamic = "force-dynamic";
@@ -65,7 +67,10 @@ export default async function HalamanDasbor() {
   } catch (e) {
     return <BelumTersambung alasan={`Gagal membaca Google Sheet: ${e instanceof Error ? e.message : "tidak diketahui"}`} />;
   }
-  const fu: StatFU | null = await statistik().catch(() => null);
+  const [fu, siklus] = await Promise.all([
+    statistik().catch((): StatFU | null => null),
+    hitungSiklus().catch((): BarisSiklus[] | null => null),
+  ]);
   const masalah = d.stok.filter((s) => s.status !== "AMAN").sort((a, b) => a.tersedia - a.minimum - (b.tersedia - b.minimum));
 
   return (
@@ -124,6 +129,18 @@ export default async function HalamanDasbor() {
             🧪 Uji alur follow-up →
           </Link>
         </Kartu>
+      )}
+
+      {siklus && (
+        <div id="siklus" className="scroll-mt-24">
+          <Kartu
+            judul="Siklus pakai produk"
+            sub={`Berapa hari 1 produk habis dipakai, dasar jadwal pengingat beli ulang. "Data nyata" = median jarak pembelian ulang pelanggan yang sama (per pcs). Saran muncul kalau sudah ada minimal ${DATA_MINIMAL} data dan bedanya ≥15%. Angka juga bisa diubah langsung di tab Lama_Pakai.`}
+            className="mt-6"
+          >
+            <SiklusPakai data={siklus} minimal={DATA_MINIMAL} />
+          </Kartu>
+        </div>
       )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.6fr_1fr]">

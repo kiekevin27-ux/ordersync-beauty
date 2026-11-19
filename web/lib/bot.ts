@@ -12,6 +12,7 @@ import { bacaTab } from "./sheets";
 import { barisStok, bacaStok, cekStok, jamWib } from "./stok";
 import { daftarPemilik } from "./telegram";
 import { kirimDaftarFollowUp } from "./followupBot";
+import { anggapSampaiOtomatis } from "./sampaiOtomatis";
 
 /** Menu perintah (juga didaftarkan ke Telegram lewat setMyCommands). */
 export const PERINTAH = [
@@ -206,6 +207,7 @@ export async function balasChat(pesan: { chatId: number | string; teks: string; 
   try {
     // Follow-up dikirim sebagai beberapa kartu bertombol langsung dari sini; balasan teks dikosongkan.
     if (perintah === "followup") {
+      await anggapSampaiOtomatis().catch(() => null); // order diantar > 4 hari ikut masuk daftar
       await kirimDaftarFollowUp([pesan.chatId]);
       return "";
     }

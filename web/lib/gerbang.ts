@@ -59,8 +59,11 @@ function cekOrder(body: Obj) {
   if (!kosong(body.izin_wa) && !["ya", "tidak"].includes(String(body.izin_wa).trim().toLowerCase())) {
     errors.push("Field 'izin_wa' harus 'ya' atau 'tidak'");
   }
-  if (!kosong(body.sampai_pada) && !POLA_TANGGAL.test(String(body.sampai_pada).trim())) {
-    errors.push("Field 'sampai_pada' harus berformat YYYY-MM-DD atau YYYY-MM-DD HH:mm");
+  for (const f of ["sampai_pada", "dikirim_pada"]) {
+    if (!kosong(body[f]) && !POLA_TANGGAL.test(String(body[f]).trim())) errors.push(`Field '${f}' harus berformat YYYY-MM-DD atau YYYY-MM-DD HH:mm`);
+  }
+  if (!kosong(body.sampai_otomatis) && !["ya", "tidak"].includes(String(body.sampai_otomatis).trim().toLowerCase())) {
+    errors.push("Field 'sampai_otomatis' harus 'ya' atau 'tidak'");
   }
 
   let items: Obj[] = [];
@@ -107,7 +110,8 @@ type Baris = {
   //   izin_wa       "ya" kalau pembeli mencentang "boleh dihubungi via WhatsApp" saat checkout
   //   sampai_pada   kapan paket sampai (diisi saat status diubah ke "sampai") → dasar H+3 & beli ulang
   //   dari_followup no pesanan lama, kalau order ini dibuat dari link "pesan ulang"
-  izin_wa?: string; sampai_pada?: string; dari_followup?: string;
+  //   dikirim_pada  kapan paket diserahkan ke kurir; sampai_otomatis "ya" kalau "sampai" ditandai sistem (diantar > 4 hari)
+  izin_wa?: string; sampai_pada?: string; dari_followup?: string; dikirim_pada?: string; sampai_otomatis?: string;
 };
 
 /** Rapikan order lalu pecah jadi 1 baris per produk (aturan sama dengan scripts/clean_merge.py). */
@@ -143,7 +147,9 @@ function normalisasi(o: Obj & { items: Obj[] }, wib: string): Baris[] {
   const lacak: Pick<Baris, "kurir" | "no_resi"> = {};
   if (!kosong(o.kurir)) lacak.kurir = String(o.kurir).trim();
   if (!kosong(o.no_resi)) lacak.no_resi = String(o.no_resi).trim();
-  const ikut: Pick<Baris, "izin_wa" | "sampai_pada" | "dari_followup"> = {};
+  const ikut: Pick<Baris, "izin_wa" | "sampai_pada" | "dari_followup" | "dikirim_pada" | "sampai_otomatis"> = {};
+  if (!kosong(o.dikirim_pada)) ikut.dikirim_pada = String(o.dikirim_pada).trim();
+  if (!kosong(o.sampai_otomatis)) ikut.sampai_otomatis = String(o.sampai_otomatis).trim().toLowerCase();
   if (!kosong(o.izin_wa)) ikut.izin_wa = String(o.izin_wa).trim().toLowerCase();
   if (!kosong(o.sampai_pada)) ikut.sampai_pada = String(o.sampai_pada).trim();
   if (!kosong(o.dari_followup)) ikut.dari_followup = String(o.dari_followup).trim();

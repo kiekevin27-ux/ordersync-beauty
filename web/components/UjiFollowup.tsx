@@ -84,6 +84,9 @@ export default function UjiFollowup() {
           <button className="tombol-utama !text-sm" disabled={!!sibuk || !bisaBuat} onClick={() => aksi({ aksi: "contoh", skenario: "beli_ulang", nama, hp }, "b")}>
             {sibuk === "b" ? "Membuat…" : "🔁 Serum dibeli ±4 minggu lalu"}
           </button>
+          <button className="tombol-garis !text-sm" disabled={!!sibuk || !bisaBuat} onClick={() => aksi({ aksi: "diantar", nama, hp }, "d")}>
+            {sibuk === "d" ? "Membuat…" : "🚚 Diantar 5 hari lalu, lupa ditandai sampai"}
+          </button>
         </div>
       </section>
 
@@ -135,10 +138,24 @@ export default function UjiFollowup() {
       </section>
 
       <section className="mt-6 rounded-3xl bg-white p-5 shadow-kartu sm:p-6">
-        <h2 className="font-judul text-lg font-semibold">3. Selesai mencoba</h2>
+        <h2 className="font-judul text-lg font-semibold">3. Siklus pakai produk (data nyata)</h2>
         <p className="mt-1 text-xs text-tinta-lembut">
-          Menghapus order uji, catatan di tab <code className="font-kode">Follow_Up</code>, pesanan yang dibuat dari link pesan ulang order uji, dan nomor uji di{" "}
-          <code className="font-kode">Tidak_Dihubungi</code>.
+          Perkiraan awal serum Vitamin C = 30 hari. Tombol ini membuat 6 pelanggan fiktif yang membeli serum itu 2x dengan jarak 22–27 hari (median 24),
+          lalu Dashboard menyarankan mengubah lama pakainya ke 24 hari. Pelanggan fiktif ini tidak memberi izin WA, jadi tidak masuk daftar follow-up.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button className="tombol-utama !text-sm" disabled={!!sibuk} onClick={() => aksi({ aksi: "riwayat" }, "s")}>
+            {sibuk === "s" ? "Membuat…" : "📈 Buat riwayat beli ulang"}
+          </button>
+          <Link href="/dashboard#siklus" className="tombol-garis !text-sm">Lihat di Dashboard →</Link>
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-3xl bg-white p-5 shadow-kartu sm:p-6">
+        <h2 className="font-judul text-lg font-semibold">4. Selesai mencoba</h2>
+        <p className="mt-1 text-xs text-tinta-lembut">
+          Menghapus order uji, catatan di tab <code className="font-kode">Follow_Up</code>, pesanan yang dibuat dari link pesan ulang order uji, nomor uji di{" "}
+          <code className="font-kode">Tidak_Dihubungi</code>, dan mengembalikan tab <code className="font-kode">Lama_Pakai</code> ke perkiraan awal.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <button className="tombol-garis !text-sm" disabled={!!sibuk} onClick={() => aksi({ aksi: "reset" }, "r")}>

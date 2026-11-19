@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { sheetsTersambung } from "@/lib/sheets";
-import { buatContoh, daftar, kirimSekarang, resetUji, type Skenario } from "@/lib/ujiFollowup";
+import { buatContoh, buatDiantar, buatRiwayat, daftar, kirimSekarang, resetUji, type Skenario } from "@/lib/ujiFollowup";
 
 /**
  * GET  /api/uji-followup → daftar follow-up hari ini (pratinjau, tanpa Telegram)
- * POST /api/uji-followup → { aksi: "contoh", skenario: "ulasan" | "beli_ulang", nama, hp } | { aksi: "kirim" } | { aksi: "reset" }
+ * POST /api/uji-followup → { aksi: "contoh", skenario: "ulasan" | "beli_ulang", nama, hp } | { aksi: "riwayat" } | { aksi: "kirim" } | { aksi: "reset" }
  */
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -32,6 +32,8 @@ export async function POST(req: Request) {
     if (b.aksi === "contoh" && (b.skenario === "ulasan" || b.skenario === "beli_ulang")) {
       return NextResponse.json(await buatContoh(b.skenario as Skenario, String(b.nama ?? "").slice(0, 60), String(b.hp ?? "").slice(0, 20)));
     }
+    if (b.aksi === "diantar") return NextResponse.json(await buatDiantar(String(b.nama ?? "").slice(0, 60), String(b.hp ?? "").slice(0, 20)));
+    if (b.aksi === "riwayat") return NextResponse.json(await buatRiwayat());
     if (b.aksi === "kirim") return NextResponse.json(await kirimSekarang());
     if (b.aksi === "reset") return NextResponse.json(await resetUji());
     return NextResponse.json({ ok: false, pesan: "Aksi tidak dikenal" }, { status: 400 });

@@ -9,7 +9,8 @@
  *
  * Jadwal (dihitung dari tanggal sampai):
  *   ulasan      H+3
- *   beli ulang  saat produk diperkirakan hampir habis = (lama_pakai_hari × qty) − 5 hari, minimal H+7.
+ *   beli ulang  saat produk diperkirakan hampir habis = (lama pakai × qty) − 5 hari, minimal H+7.
+ *               Lama pakai dari tab Lama_Pakai (lib/siklus.ts), bisa dikoreksi dengan data pembelian ulang nyata.
  *               Kalau 1 order berisi beberapa produk, yang paling cepat habis yang dipakai.
  *               Dilewati kalau pembeli (no HP sama) sudah membeli produk itu lagi sesudah order tersebut.
  * Item yang jatuh tempo sampai 14 hari lalu tetap muncul (misal pemilik toko sedang libur).
@@ -26,6 +27,7 @@ import { waktuWib } from "./gerbang";
 import { cariProduk } from "./produk";
 import { namaPendek } from "./format";
 import { bacaMentah, bacaTab, pastikanTab, tulisRentang, upsertBaris } from "./sheets";
+import { bacaLamaPakai } from "./siklus";
 
 export const TAB_FU = "Follow_Up";
 export const TAB_TEMPLATE = "Template_Pesan";
@@ -84,7 +86,7 @@ export type ItemFU = {
   linkWaWeb: string;
 };
 
-type DataFU = { orders: Order[]; riwayat: Map<string, Record<string, unknown>>; template: Record<Jenis, string>; stop: Set<string> };
+type DataFU = { orders: Order[]; riwayat: Map<string, Record<string, unknown>>; template: Record<Jenis, string>; stop: Set<string>; lama: Map<string, number> };
 
 async function bacaTabAman(tab: string, judul: string[]): Promise<Record<string, unknown>[]> {
   try {
@@ -100,11 +102,12 @@ async function bacaTabAman(tab: string, judul: string[]): Promise<Record<string,
 const JUDUL_FU = ["id", "no_pesanan", "jenis", "nama", "no_hp", "status", "diperbarui_wib", "oleh", "pesanan_ulang", "omzet_ulang", "catatan"];
 
 async function bacaData(): Promise<DataFU> {
-  const [{ Order_Masuk }, fu, tpl, stop] = await Promise.all([
+  const [{ Order_Masuk }, fu, tpl, stop, lama] = await Promise.all([
     bacaTab(["Order_Masuk"]),
     bacaTabAman(TAB_FU, JUDUL_FU),
     bacaTabAman(TAB_TEMPLATE, ["kunci", "teks"]),
     bacaTabAman(TAB_STOP, ["no_hp", "nama", "waktu_wib", "catatan"]),
+    bacaLamaPakai(), // tab Lama_Pakai (bisa diubah pemilik toko / "Terapkan saran" di dashboard)
   ]);
   // Template: isi bawaan kalau tab masih kosong, supaya pemilik toko tinggal mengedit.
   const template = { ...TEMPLATE_BAWAAN };
@@ -135,6 +138,7 @@ async function bacaData(): Promise<DataFU> {
     riwayat: new Map(fu.map((r) => [String(r.id), r])),
     template,
     stop: new Set(stop.map((r) => hpNormal(r.no_hp))),
+    lama,
   };
 }
 
@@ -161,7 +165,7 @@ export async function daftarHariIni(hariIni = waktuWib().slice(0, 10)): Promise<
     const calon: { jenis: Jenis; tempo: string; produk: string }[] = [];
     calon.push({ jenis: "ulasan", tempo: tambahHari(tglSampai, H_ULASAN), produk: namaPendek(produk[0].p!.nama) + (produk.length > 1 ? ` & ${produk.length - 1} produk lain` : "") });
     // produk yang paling cepat habis
-    const habis = produk.map((i) => ({ i, hari: i.p!.lama_pakai_hari * i.qty })).sort((a, b) => a.hari - b.hari)[0];
+    const habis = produk.map((i) => ({ i, hari: (d.lama.get(i.sku) ?? i.p!.lama_pakai_hari) * i.qty })).sort((a, b) => a.hari - b.hari)[0];
     // sudah membeli produk yang SAMA lagi sesudah order ini → tidak perlu diingatkan
     const sudahBeliLagi = d.orders.some((x) => x.no !== o.no && x.hp === o.hp && x.tanggal > o.tanggal && x.status !== "batal" && x.items.some((i) => i.sku === habis.i.sku));
     if (!sudahBeliLagi) calon.push({ jenis: "beli_ulang", tempo: tambahHari(tglSampai, Math.max(7, habis.hari - 5)), produk: namaPendek(habis.i.p!.nama) });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cekStok } from "@/lib/stok";
 import { kirimDaftarFollowUp } from "@/lib/followupBot";
+import { anggapSampaiOtomatis } from "@/lib/sampaiOtomatis";
 import { telegramSiap } from "@/lib/telegram";
 
 /**
@@ -20,9 +21,11 @@ export async function GET(req: Request) {
   try {
     const h = await cekStok({ paksa: true });
     // Daftar follow-up pelanggan hari ini (diam kalau tidak ada; gagal di sini tidak menggagalkan laporan stok).
+    // Pengaman: order "diantar" > 4 hari dianggap sampai, supaya follow-up-nya tetap berjalan.
+    const sampaiOtomatis = await anggapSampaiOtomatis({ kabari: telegramSiap() }).catch((e) => ({ diubah: [], gagal: [String(e)] }));
     let followup: number | string = 0;
     if (telegramSiap()) followup = await kirimDaftarFollowUp(undefined, { diamKalauKosong: true }).catch((e) => `gagal: ${e instanceof Error ? e.message : e}`);
-    return NextResponse.json({ ok: true, notifikasi_dikirim: h.notifikasi_dikirim, galat_telegram: h.galat_telegram, perlu_perhatian: h.perlu_perhatian.length, followup });
+    return NextResponse.json({ ok: true, notifikasi_dikirim: h.notifikasi_dikirim, galat_telegram: h.galat_telegram, perlu_perhatian: h.perlu_perhatian.length, followup, sampai_otomatis: sampaiOtomatis.diubah.length });
   } catch (e) {
     return NextResponse.json({ ok: false, galat: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
