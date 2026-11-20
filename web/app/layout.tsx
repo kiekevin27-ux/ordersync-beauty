@@ -4,6 +4,7 @@ import "./globals.css";
 import KeranjangProvider from "@/components/KeranjangProvider";
 import Header from "@/components/Header";
 import LaciKeranjang from "@/components/LaciKeranjang";
+import ChatCS from "@/components/ChatCS";
 import { semuaProduk } from "@/lib/produk";
 
 const judul = Fraunces({ subsets: ["latin"], variable: "--font-judul", display: "swap" });
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Header />
           <main>{children}</main>
           <LaciKeranjang />
+          <ChatCS />
           <footer className="mt-24 border-t border-blush-tua/60 px-4 py-10 text-center text-sm text-tinta-lembut">
             Glowra Beauty adalah merek fiktif · Bagian dari studi kasus <b>OrderSync Beauty</b>
           </footer>
